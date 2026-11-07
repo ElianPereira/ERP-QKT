@@ -104,6 +104,12 @@ def _pedir_acepto(resp) -> None:
         lineas=[f'Recibirá los avisos de {resp.get_rol_display()}'], cierre='Responde ACEPTO para activarlo.'))
 
 
+def reenviar_acepto(resp, usuario=None) -> None:
+    """Vuelve a mandar la solicitud de «ACEPTO» al número pendiente."""
+    registrar_cambio(resp, 'reenvio_acepto', '', resp.telefono_pendiente, usuario)
+    _pedir_acepto(resp)
+
+
 def es_acepto(texto: str) -> bool:
     return _normalizar(texto) == 'acepto'
 
