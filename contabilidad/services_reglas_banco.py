@@ -176,13 +176,14 @@ def _pendiente_sin_saldo_caja(movimiento):
 
 
 def aplicar_reglas(estado_cuenta, usuario=None):
-    from .services_abonos import ids_movimientos_en_bitacora
     """
     Crea la póliza de cada movimiento sin asiento que calce con una regla.
     Devuelve un resumen con listas de MovimientoEstadoCuenta: 'aplicadas',
     'borrador' (póliza creada, falta aplicarla), 'sin_cuenta' (la regla calza
     pero su operación no tiene cuenta configurada) y 'sin_regla'.
     """
+    from .services_abonos import ids_movimientos_en_bitacora
+
     resumen = {'aplicadas': [], 'borrador': [], 'sin_cuenta': [], 'sin_regla': [], 'sin_saldo_caja': []}
     if not estado_cuenta.cuenta_bancaria.cuenta_contable:
         return resumen

@@ -222,12 +222,6 @@ def _crear_pago(bit, cot, nota) -> Optional[Pago]:
     return pago
 
 
-def _marcar_error(bit_id, cot, motivo) -> AbonoIdentificado:
-    AbonoIdentificado.objects.filter(pk=bit_id).update(
-        estado='ERROR', motivo=motivo[:300], cotizacion=cot, updated_at=timezone.now())
-    return AbonoIdentificado.objects.get(pk=bit_id)
-
-
 def _proponer(bit, cot, capa, motivo='', *, registrable) -> Optional[str]:
     """Deja el abono PROPUESTO. Devuelve el token en claro si lleva botones (solo cuando se
     puede registrar de verdad); el token nunca se guarda sin hash."""

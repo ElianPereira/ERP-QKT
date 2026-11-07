@@ -23,6 +23,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from comercial import services_ordenes_wa, services_terminal
+from contabilidad import services_abonos
 from core_erp.ratelimit import rate_limit
 from cumplimiento import services_renovacion
 
@@ -59,7 +60,8 @@ def _es_boton_interno(identificador) -> bool:
             or services_preguntas.es_boton(identificador) or services_encuesta.es_boton(identificador)
             or services_renovacion.es_boton(identificador)
             or services_inspeccion.es_boton(identificador) or services_visitas.es_boton(identificador)
-            or services_ordenes_wa.es_boton(identificador))
+            or services_ordenes_wa.es_boton(identificador)
+            or services_abonos.es_boton(identificador))
 
 
 def _texto(mensaje: dict) -> str:
