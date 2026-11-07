@@ -322,28 +322,6 @@
         </div>
         {% endif %}
 
-        {% if filas_transferencia %}
-        <!-- Transferencia bancaria directa: el folio en el concepto identifica el pago solo. -->
-        <div class="card" id="card-transferencia-bancaria">
-            <div class="card-title"><i class="fas fa-university"></i> Transferencia bancaria</div>
-            <p style="font-size:13px; color:#8a8780; margin-bottom:4px;">
-                Si prefieres transferir desde tu banco, <strong>escribe tu folio en el concepto</strong>:
-                así identificamos tu pago y lo vemos reflejado en este portal.
-            </p>
-            {% for etiqueta, valor in filas_transferencia %}
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #ece9e2;">
-                <div>
-                    <div style="font-size:11px; color:#8a8780;">{{ etiqueta }}</div>
-                    <div id="tb-{{ forloop.counter }}" style="font-weight:700; font-size:15px; letter-spacing:.5px; word-break:break-all;">{{ valor }}</div>
-                </div>
-                <button type="button" class="btn-copiar-transferencia" data-target="tb-{{ forloop.counter }}"
-                        style="background:#f0efe9; border:1px solid #e0ddd3; border-radius:6px; padding:10px 12px; min-height:44px; cursor:pointer; font-size:12px; font-family:inherit; white-space:nowrap;">
-                    <i class="fas fa-copy"></i> Copiar</button>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
-
         {% if puede_pagar_en_linea %}
 
         {% if pagos_pendientes_openpay %}
@@ -527,6 +505,30 @@
                 <button type="button" id="btn-cerrar-overlay-pago-texto" class="btn btn-green" style="border:none; cursor:pointer; margin-top:16px; padding:10px 24px;">Cerrar</button>
             </div>
         </div>
+        {% endif %}
+
+        {% if filas_transferencia %}
+        <!-- Transferencia bancaria directa: el folio en el concepto identifica el pago solo. -->
+        <details class="card" id="card-transferencia-bancaria">
+            <summary class="card-title" style="cursor:pointer; min-height:44px; display:flex; align-items:center; gap:6px;">
+                <i class="fas fa-university"></i> ¿Prefieres transferir desde tu banco?</summary>
+            <p style="font-size:13px; color:#8a8780; margin-bottom:4px;">
+                Lo más rápido es <strong>pagar en línea</strong>: tu pago se refleja al momento. Si prefieres
+                transferir directo, <strong>escribe tu folio en el concepto</strong>; el pago se verá en este
+                portal cuando lo recibamos en el banco (puede tardar unos días).
+            </p>
+            {% for etiqueta, valor in filas_transferencia %}
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid #ece9e2;">
+                <div>
+                    <div style="font-size:11px; color:#8a8780;">{{ etiqueta }}</div>
+                    <div id="tb-{{ forloop.counter }}" style="font-weight:700; font-size:15px; letter-spacing:.5px; word-break:break-all;">{{ valor }}</div>
+                </div>
+                <button type="button" class="btn-copiar-transferencia" data-target="tb-{{ forloop.counter }}"
+                        style="background:#f0efe9; border:1px solid #e0ddd3; border-radius:6px; padding:10px 12px; min-height:44px; cursor:pointer; font-size:12px; font-family:inherit; white-space:nowrap;">
+                    <i class="fas fa-copy"></i> Copiar</button>
+            </div>
+            {% endfor %}
+        </details>
         {% endif %}
 
         <!-- Documentos y acciones -->
