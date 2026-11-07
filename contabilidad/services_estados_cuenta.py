@@ -133,9 +133,12 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     3. CFDI cargado (carga masiva de XML) que calza con el cargo: ya marcado
        pagado desde esta cuenta (se liga su línea de bancos) o sin cuenta de
        pago (se completa y aplica su póliza).
-    4. Reglas por texto del concepto o cuenta del tercero.
+    4. Abonos de clientes que transfirieron directo: el folio COT-NNN en el concepto
+       crea el Pago; nombre o monto solo se proponen a Dirección (`services_abonos`).
+    5. Reglas por texto del concepto o cuenta del tercero.
     Devuelve el resumen de `aplicar_reglas`.
     """
+    from .services_abonos import identificar_abonos
     from .services_reglas_banco import (
         aplicar_reglas,
         emparejar_compras_ya_pagadas,
@@ -147,6 +150,7 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     usuario = usuario or usuario_sistema()
     vincular_polizas_propias(estado_cuenta)
     _emparejar_automaticamente(estado_cuenta)
+    identificar_abonos(estado_cuenta)
     sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario)
     emparejar_compras_ya_pagadas(estado_cuenta)
     aplicar_sugerencias_compras(estado_cuenta, usuario)

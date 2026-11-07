@@ -1301,6 +1301,7 @@ class ReglaConciliacionAdmin(admin.ModelAdmin):
     def origen_display(self, obj):
         return ui.badge_por_valor(obj.origen, self.TONOS_ORIGEN, obj.get_origen_display())
 from . import (
+    admin_abonos,  # noqa: E402,F401 -- abonos de clientes identificados por folio
     admin_estados_correo,  # noqa: E402,F401 -- bitácora del estado de cuenta por correo
     admin_sat,  # noqa: E402,F401 -- registra los admins de la descarga masiva del SAT
 )

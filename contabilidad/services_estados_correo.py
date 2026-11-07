@@ -399,9 +399,9 @@ def _advertencia_continuidad(estado):
 
 # Punto de enganche de la cadena posterior (Issue #401, ajuste 4). Hoy
 # `procesar_estado_cuenta()` ya corrió las reglas existentes (emparejar,
-# CFDI, reglas por texto). Las capas nuevas —identificación de abonos por
-# folio en el concepto (fase 2), gastos sin factura (fase 4) y preguntas al
-# contador— se agregan aquí como `callable(estado_cuenta)`, en ese orden.
+# abonos de clientes por folio, CFDI, reglas por texto). Las capas nuevas
+# —gastos sin factura (fase 4) y preguntas al contador— se agregan aquí como
+# `callable(estado_cuenta)`, en ese orden.
 CADENA_POST_PROCESO = []
 
 
@@ -465,10 +465,14 @@ def _avisar(bitacora):
             total = estado.movimientos.count()
             sin = estado.movimientos.filter(movimiento_contable__isnull=True).count()
             al_contador = enviar_al_contador(estado)
+            from .services_abonos import resumen_de_estado
+            abonos = resumen_de_estado(estado)
             aviso = Aviso(
                 titulo=f"Estado de cuenta BBVA de {_mes_texto(estado.periodo_mes, estado.periodo_anio)} cargado",
                 categoria='Contabilidad',
                 lineas=[f"{total} movimientos", f"{sin} sin conciliar",
+                        (f"{abonos['identificados']} pagos identificados, {abonos['por_confirmar']} por confirmar"
+                         if abonos['identificados'] or abonos['por_confirmar'] else ''),
                         "PDF enviado al correo del contador" if al_contador else '',
                         "Revisa la advertencia en Correos" if bitacora.advertencia else ''])
             for telefono in _telefonos_aviso():
