@@ -25,6 +25,8 @@ import re
 import anthropic
 from django.conf import settings
 
+from comercial.datos_bancarios import CLABE as CLABE_QKT
+
 from .herramientas_agente import HERRAMIENTAS
 from .models import RespuestaBloqueada
 from .services_notificaciones import MAPS_URL_QKT
@@ -94,7 +96,10 @@ def revisar_filtro(conv, texto: str) -> str:
     publico = _digitos(getattr(settings, 'META_WA_KOOXI_NUMERO', ''))
     if len(publico) >= 10:
         permitidos.add(publico[-10:])
-    for m in _RE_TELEFONO.finditer(_RE_FOLIO_ARCO.sub(' ', _RE_FECHA.sub(' ', texto))):
+    # La CLABE de la Quinta (la que la herramienta le da al cliente para transferir) es la única
+    # cuenta que puede salir; cualquier otra de 10+ dígitos sigue deteniéndose.
+    sin_clabe_propia = texto.replace(CLABE_QKT, ' ')
+    for m in _RE_TELEFONO.finditer(_RE_FOLIO_ARCO.sub(' ', _RE_FECHA.sub(' ', sin_clabe_propia))):
         digitos = _digitos(m.group(0))
         if len(digitos) >= 10 and digitos[-10:] not in permitidos:
             return 'Incluye un número de teléfono o cuenta que no es de este cliente.'
@@ -140,6 +145,8 @@ funciono no los puedo compartir.»
 - «Yo no puedo dar descuentos; le pasé tu solicitud al equipo, pero no te puedo asegurar que te lo den.»
 - «Rentar la Quinta como evento son 6 horas y sale en $4,000.00 (estimado, IVA incluido).» Los \
 precios al público y los estimados del cotizador NO son información interna.
+- La CLABE de la Quinta, el banco, el titular y el folio de la reservación del propio cliente para \
+que transfiera (los da la herramienta): son datos públicos de cobro, no información interna.
 - Disponibilidad de fechas, qué incluyen los servicios, reglas del lugar, formas de pago, enlaces a \
 quintakooxtanil.com, cómo entrar al portal, ofrecer pasar con una persona del equipo.
 

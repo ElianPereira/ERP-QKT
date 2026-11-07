@@ -156,7 +156,7 @@
     <tr><td class="label">Anticipo pagado</td><td>{{ anticipo_str }}</td></tr>
     <tr><td class="label">Total pagado a la fecha</td><td>{{ total_pagado_str }}</td></tr>
     <tr><td class="label">Saldo pendiente</td><td><strong>{{ saldo_str }}</strong></td></tr>
-    <tr><td class="label">Datos bancarios</td><td>CLABE: 012910004895703146 &nbsp;|&nbsp; Banco: BBVA &nbsp;|&nbsp; Titular: Elian Pereira Ceh</td></tr>
+    <tr><td class="label">Datos bancarios</td><td>CLABE: {{ banco_clabe }} &nbsp;|&nbsp; Banco: {{ banco_nombre }} &nbsp;|&nbsp; Titular: {{ banco_titular }}<br>Al transferir, escribe <strong>{{ folio }}</strong> en el concepto.</td></tr>
   </table>
   <p class="small">
     El pago podrá realizarse en efectivo, transferencia bancaria, cheque o tarjeta de crédito/débito.

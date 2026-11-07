@@ -542,6 +542,7 @@ def contexto_plan_pagos(cotizacion, plan):
     """Contexto del PDF del plan de pagos. Las condiciones salen de las fuentes
     vigentes (tabla de la Política de Cancelación y días de pago total), no de
     texto fijo en la plantilla, para no prometer algo distinto al contrato."""
+    from . import datos_bancarios
     from . import reglas_contrato as rc
 
     dias = Cotizacion.DIAS_PAGO_TOTAL.get(cotizacion.tipo_servicio, Cotizacion.DIAS_PAGO_TOTAL['EVENTO'])
@@ -554,6 +555,7 @@ def contexto_plan_pagos(cotizacion, plan):
         'dias_pago_total': dias,
         'fecha_pago_total': cotizacion.fecha_evento - timedelta(days=dias),
         'tabla_cancelacion': rc.TABLA_CANCELACION[tabla],
+        'instruccion_transferencia': datos_bancarios.instruccion_transferencia(cotizacion),
     }
 
 

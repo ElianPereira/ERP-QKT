@@ -28,9 +28,19 @@ Gmail (filtro) → estados@quintakooxtanil.com → Cloudflare Email Routing → 
 - `reprocesar_estados_correo --aplicar` corre **diario a las 09:15** en el programador: reintenta (hasta 8 veces)
   lo que quedó pendiente o con error, y desde el **día 7** de cada mes avisa, una sola vez, si no llegó el estado
   de cuenta del mes anterior.
+- **Abonos de clientes por folio** (`contabilidad/services_abonos.py`, dentro de `emparejar_y_asentar`, después
+  del emparejamiento contra asientos existentes y antes de las reglas): un abono sin asiento se atribuye a una
+  cotización. (1) Con `COT-145` en el concepto y la cotización admitiendo pago con el importe dentro del saldo
+  (+$0.50), se crea el `Pago` (TRANSFERENCIA) solo y se liga el renglón a su póliza. (2) Nombre del cliente
+  (2+ palabras) y monto igual a saldo, mínimo o parcialidad, o (3) solo monto con evento entre −5 y +180 días: si hay
+  UNA candidata, se propone a Dirección con botones `[Registrar] [No es]` (24 h, solo su teléfono activo; al
+  confirmar se revalida el saldo). Sin pista: pendiente al encargado. Todo queda en Contabilidad → Abonos (solo
+  lectura; acciones de respaldo para Dirección). El aviso de «estado cargado» agrega «N pagos identificados, M por
+  confirmar». Si la cuenta bancaria del estado no es la de «Banco principal», no se crea ningún pago (error y
+  pendiente a Dirección).
 - Tras `procesar_estado_cuenta()` queda un punto de enganche (`CADENA_POST_PROCESO` en
-  `contabilidad/services_estados_correo.py`) para las capas futuras (identificar abonos, gastos sin factura,
-  preguntas al contador). Hoy no hay ninguna más allá de las reglas que ya corre `procesar_estado_cuenta()`.
+  `contabilidad/services_estados_correo.py`) para las capas futuras (gastos sin factura, preguntas al contador).
+  Hoy no hay ninguna más allá de lo que ya corre `procesar_estado_cuenta()`.
 
 ## Pasos para activarlo (en este orden)
 
