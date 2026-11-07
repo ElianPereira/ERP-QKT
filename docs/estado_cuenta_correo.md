@@ -22,6 +22,7 @@ Gmail (filtro) → estados@quintakooxtanil.com → Cloudflare Email Routing → 
 - Si ese periodo ya estaba cargado a mano → resultado «Ignorado» y no cambia nada. Si el correo solo trae una
   liga → «Ignorado» y un pendiente URGENTE para Dirección (hay que descargarlo de BBVA y subirlo a mano).
 - Si el saldo inicial no encadena con el saldo final del mes anterior → se procesa y queda una advertencia.
+- **Al contador** le llega por correo el estado de cuenta (el archivo ya sin contraseña) a la dirección de Facturación → Contador, una vez por estado de cuenta; para reenviarlo o mandar uno cargado a mano: Contabilidad → Estados de cuenta → acción «Enviar al contador».
 - Avisos por WhatsApp a Dirección con copia al contador: «cargado: N movimientos, M sin conciliar» (nunca
   montos ni nombres). Errores y «no llegó» abren un pendiente URGENTE para Dirección.
 - `reprocesar_estados_correo --aplicar` corre **diario a las 09:15** en el programador: reintenta (hasta 8 veces)

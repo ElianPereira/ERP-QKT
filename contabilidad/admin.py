@@ -1017,7 +1017,7 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
     ]
     list_filter = ['estado', 'cuenta_bancaria', 'periodo_anio']
     inlines = [MovimientoEstadoCuentaInline]
-    actions = ['procesar', 'reemparejar', 'generar_conciliacion', 'sugerir_y_aplicar_compras']
+    actions = ['procesar', 'reemparejar', 'generar_conciliacion', 'sugerir_y_aplicar_compras', 'enviar_al_contador']
     readonly_fields = ['resumen_display', 'saldo_inicial_estado', 'saldo_final_estado',
                        'fecha_corte_real', 'estado', 'error_detalle', 'conciliacion']
     fieldsets = [
@@ -1051,6 +1051,16 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
         if not obj.pk:
             obj.cargado_por = request.user
         super().save_model(request, obj, form, change)
+
+    @admin.action(description="Enviar al contador")
+    @confirmar_accion_destructiva(
+        "Se enviará por correo al contador el archivo de cada estado de cuenta seleccionado, sin contraseña.")
+    def enviar_al_contador(self, request, queryset):
+        from .services_estados_correo import enviar_al_contador
+        enviados = sum(1 for estado in queryset.exclude(archivo='') if enviar_al_contador(estado, reenvio=True))
+        nivel = messages.SUCCESS if enviados else messages.WARNING
+        self.message_user(request, f"{enviados} de {queryset.count()} estado(s) de cuenta enviado(s) al contador. "
+                          "Si falta alguno, revisa el correo en Facturación → Contador.", nivel)
 
     @admin.display(description="Período", ordering="periodo_anio")
     def periodo_display(self, obj):
