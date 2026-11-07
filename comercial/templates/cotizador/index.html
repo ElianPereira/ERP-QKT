@@ -964,6 +964,7 @@ function aforoCotizable() {
 function selCaminoEvento(val) {
   var n = parseInt((document.getElementById('personas') || {}).value || '0', 10);
   if (val === 'PERSONALIZADO' && n < MIN_PERSONAS_PERSONALIZADO) return;
+  if (val === 'PAQUETE' && document.getElementById('camino-btn-paquete').disabled) return;
   caminoEventoSel = val;
   document.getElementById('camino-btn-paquete').classList.toggle('active', val === 'PAQUETE');
   document.getElementById('camino-btn-personalizado').classList.toggle('active', val === 'PERSONALIZADO');
@@ -1016,6 +1017,15 @@ function actualizarCaminoEvento() {
   }
 }
 
+// Sin paquetes para el aforo actual, el botón "Elige un paquete" se
+// deshabilita en vez de rebotar al cliente a Personalizar al picarlo.
+function marcarPaquetesDisponibles(hay) {
+  var btn = document.getElementById('camino-btn-paquete');
+  btn.disabled = !hay;
+  btn.querySelector('.nivel-precio').textContent = hay
+    ? 'Precio fijo, todo incluido' : 'Próximamente';
+}
+
 async function cargarPaquetesEvento() {
   var grid = document.getElementById('paq-evento-grid');
   grid.innerHTML = '<div class="paq-empty">Cargando paquetes...</div>';
@@ -1033,6 +1043,7 @@ async function cargarPaquetesEvento() {
     var d = await r.json();
     if (!d.ok) throw new Error('sin paquetes');
     paquetesEvento = d.paquetes || [];
+    marcarPaquetesDisponibles(paquetesEvento.length > 0);
     if (!paquetesEvento.length) {
       // Mismo criterio que ya usa el catálogo abierto con cero opciones: no
       // dejar al cliente en un callejón sin salida, se cae a Personalizar.
