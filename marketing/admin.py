@@ -1,12 +1,15 @@
 from django.contrib import admin, messages
 from django.utils import timezone
 from django.utils.formats import date_format
+from django.utils.html import format_html, format_html_join
+from django.utils.safestring import mark_safe
 
 from core_erp import admin_ui as ui
 from core_erp.admin_filtros import filtro_periodo
 from core_erp.admin_utils import confirmar_accion_destructiva
 
 from .models import (
+    SERVICIO_CHOICES,
     AccionAnuncio,
     Anuncio,
     AutorizacionMedios,
@@ -21,6 +24,8 @@ from .models import (
     ResenaGoogle,
 )
 from .services import conversiones, medios, referidos
+from .services.ciclo import MUESTRA_MINIMA as MUESTRA_MINIMA_CICLO
+from .services.ciclo import ciclo_historico
 
 
 class SoloSuperusuarioMixin:
@@ -242,8 +247,9 @@ class ParametroMarketingAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
     list_filter = ('activo',)
     fieldsets = (
         ('Cuánto invertir', {'fields': ('pct_reinversion', 'cac_tope_manual')}),
-        ('Cuándo confiar en una cifra', {'fields': ('muestra_minima_leads', 'ventana_dias', 'ciclo_dias_evento',
-                                                     'ciclo_dias_pasadia', 'ciclo_dias_hospedaje')}),
+        ('Cuándo confiar en una cifra', {'fields': ('muestra_minima_leads', 'ventana_dias', 'ciclo_automatico',
+                                                     'ciclo_calculado', 'ciclo_dias_evento', 'ciclo_dias_pasadia',
+                                                     'ciclo_dias_hospedaje')}),
         ('Prospectos y pronóstico', {'fields': ('dias_sin_respuesta', 'prob_etapa')}),
         ('Límites para las decisiones', {'fields': (
             'cpl_max', 'frecuencia_max', 'umbral_ocupacion_pausa', 'pausa_gasto_minimo', 'pausa_dias',
@@ -252,7 +258,7 @@ class ParametroMarketingAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
         ('Vigencia', {'fields': ('vigente_desde', 'activo')}),
         ('Auditoría', {'fields': ('created_by', 'created_at', 'updated_by', 'updated_at')}),
     )
-    readonly_fields = ('created_by', 'created_at', 'updated_by', 'updated_at')
+    readonly_fields = ('ciclo_calculado', 'created_by', 'created_at', 'updated_by', 'updated_at')
 
     def has_add_permission(self, request):
         return request.user.is_active and request.user.is_superuser
@@ -268,6 +274,18 @@ class ParametroMarketingAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
             obj.created_by = request.user
         obj.updated_by = request.user
         super().save_model(request, obj, form, change)
+
+    @admin.display(description='Ciclo según tus ventas')
+    def ciclo_calculado(self, obj):
+        renglones = []
+        for tipo, etiqueta in SERVICIO_CHOICES:
+            r = ciclo_historico(tipo)
+            if r['dias'] is None:
+                renglones.append(format_html('{}: muestra insuficiente ({} de {} ventas), usa el manual',
+                                             etiqueta, r['muestra'], MUESTRA_MINIMA_CICLO))
+            else:
+                renglones.append(format_html('{}: {} días (80 % de {} ventas)', etiqueta, r['dias'], r['muestra']))
+        return format_html_join(mark_safe('<br>'), '{}', ((x,) for x in renglones))  # noqa: S308 — literal fijo
 
     @admin.display(description='Vigente desde', ordering='vigente_desde')
     def vigencia(self, obj):
