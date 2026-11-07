@@ -68,7 +68,7 @@ Los nombres anteriores (última columna) **ya no se leen**: el respaldo `legado=
 | `META_CAPI_DATASET_ID` | Dataset de la Conversions API si es distinto al Pixel (p. ej. el ligado a WhatsApp Business). Vacío = se usa `META_PIXEL_ID`. | Meta | Meta Business Manager → Orígenes de datos → Conjuntos de datos | web, Programador | — |
 | `META_CAPI_API_VERSION` | Versión de la Graph API para la Conversions API (v23.0 por defecto). | Meta | Meta for Developers → Changelog (versiones vigentes) | web, Programador | — |
 | `META_CAPI_TEST_CODE` | Código de «Probar eventos» de Meta; con valor, los eventos se marcan de prueba y no cuentan. Vacío en producción. | Meta | Meta Business Manager → Administrador de eventos → Probar eventos | web, Programador | — |
-| `META_WA_WABA_ID` | ID de la cuenta de WhatsApp Business (WABA); la Conversions API de mensajería lo pide junto al clic del anuncio. | Meta | Meta Business Manager → Cuentas → Cuentas de WhatsApp | Programador | — |
+| `META_WA_WABA_ID` | ID de la cuenta de WhatsApp Business (WABA); la Conversions API de mensajería lo pide junto al clic del anuncio. En WhatsApp Manager aparece como «Identificador de la cuenta de mensajes». Va también en `web` porque ahí se decide si un prospecto genera evento. | Meta | Meta Business Manager → Cuentas → Cuentas de WhatsApp | web, Programador | — |
 
 ## GOOGLE — reseñas (Business Profile)
 
