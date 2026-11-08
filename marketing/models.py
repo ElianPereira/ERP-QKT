@@ -371,6 +371,10 @@ class ParametroMarketing(models.Model):
         max_digits=5, decimal_places=2, default=Decimal('2.00'), validators=[MinValueValidator(Decimal('1.1'))],
         verbose_name='Factor de gasto anómalo',
         help_text='El gasto de un día que supera este múltiplo del promedio de los 7 días previos se señala.')
+    ciclo_automatico = models.BooleanField(
+        default=True, verbose_name='Calcular el ciclo con el histórico',
+        help_text='Usa los días entre el primer contacto y el primer pago de tus ventas (el 80 % de ellas ya '
+                  'pagó en ese plazo). Un servicio con menos de 5 ventas usa el valor manual de abajo.')
     ciclo_dias_evento = models.PositiveIntegerField(
         default=120, verbose_name='Ciclo de venta · evento (días)',
         help_text='Tiempo típico entre el primer contacto y el cobro de un evento. Una cohorte es madura '
@@ -432,9 +436,20 @@ class ParametroMarketing(models.Model):
         """El juego activo, o uno con los valores de fábrica (sin guardar) si nadie ha capturado nada."""
         return cls.objects.filter(activo=True).order_by('-vigente_desde', '-id').first() or cls()
 
-    def ciclo_de(self, tipo: str) -> int:
+    def ciclo_manual(self, tipo: str) -> int:
         return {'EVENTO': self.ciclo_dias_evento, 'PASADIA': self.ciclo_dias_pasadia,
                 'HOSPEDAJE': self.ciclo_dias_hospedaje}[tipo]
+
+    def ciclo_de(self, tipo: str) -> int:
+        """El ciclo que se usa: el del histórico si está activado y hay muestra; si no, el manual.
+        Se memoriza en la instancia (una consulta por servicio aunque se pida por cada cohorte)."""
+        if not self.ciclo_automatico:
+            return self.ciclo_manual(tipo)
+        cache = self.__dict__.setdefault('_ciclos', {})
+        if tipo not in cache:
+            from .services.ciclo import ciclo_historico
+            cache[tipo] = ciclo_historico(tipo)['dias']
+        return cache[tipo] if cache[tipo] is not None else self.ciclo_manual(tipo)
 
     def prob_de(self, etapa: str) -> Decimal:
         valor = (self.prob_etapa or {}).get(etapa, prob_etapa_inicial().get(etapa, '0'))

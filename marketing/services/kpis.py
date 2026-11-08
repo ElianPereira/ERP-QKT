@@ -271,4 +271,4 @@ def resumen(hoy: Optional[date] = None, parametros: Optional[ParametroMarketing]
         grupo['cac_tope'], grupo['margen'], grupo['tope_motivo'] = t['tope'], t['margen'], t['motivo']
         grupo['semaforo'] = semaforo(grupo['cac'], t['tope'], grupo['roas_cobrado'])
     return {'hoy': hoy, 'parametros': p, 'ventana': datos, 'topes': topes, 'cohortes': cohortes(hoy, parametros=p),
-            'pronostico': pronostico_anticipos(p)}
+            'pronostico': pronostico_anticipos(p), 'ciclos': {t: p.ciclo_de(t) for t in TIPOS}}

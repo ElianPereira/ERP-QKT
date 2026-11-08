@@ -277,6 +277,18 @@ salvo que queden obsoletas.
 
 
 
+- 2026-11-07 — **Ciclo de venta medido con el histórico** (pedido del propietario; sin zonas restringidas; migración
+  `marketing.0009`, un campo). `ParametroMarketing.ciclo_automatico` (default True; el juego activo lo hereda al migrar):
+  `ciclo_de(tipo)` usa `services/ciclo.ciclo_historico` = **percentil 80** de días entre el primer contacto (lo más antiguo
+  entre `Cotizacion.created_at` y el `fecha_primer_contacto` de un prospecto ligado) y el primer `Pago` INGRESO/VENTA sin
+  condonación, de ventas CONFIRMADA/EJECUTADA/CERRADA no históricas; con < 5 ventas cae al manual. Memorizado por instancia.
+  Supuestos muestra «Ciclo según tus ventas» por servicio y el tablero, el ciclo efectivo.
+
+- 2026-11-07 — **El contrato propio también pide el folio en la transferencia** (decisión del propietario; seguimiento del PR #483). La
+  cláusula Tercera de `contratos/propio/contrato.html` ahora dice que también puede pagarse por transferencia a la CLABE de
+  `comercial/datos_bancarios.py` escribiendo `COT-NNN` en el concepto (los tres servicios comparten la cláusula). Sin migración.
+  Pendiente: correr `evaluar_agente --ejecutar --caso transferencia_sin_reservacion --caso formas_pago --caso mi_saldo` con la llave de Kooxi.
+
 - 2026-11-07 — **Transferencias de clientes identificadas por folio** (**mueve dinero**: va a revisión antes del merge; sin tocar
   zonas restringidas; migración `contabilidad.0043`, una tabla nueva). Un cliente que transfiere directo a BBVA dejaba un abono sin
   `Pago`. `contabilidad/services_abonos.py::identificar_abonos` corre dentro de `emparejar_y_asentar` (después de
