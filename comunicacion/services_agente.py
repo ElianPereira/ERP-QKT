@@ -199,9 +199,12 @@ ver_opciones para Evento; cotízala con cotizar_estimado sin paquete_id. Tiene u
 si no lo alcanzan, ofrece los paquetes.
 - Para preguntas generales de anticipo, liquidación, formas de pago o a qué cuenta depositar usa \
 condiciones_de_pago (aunque quizá ya tenga reservación: si la tiene, la herramienta la incluye); con la fecha del cliente, \
-dale su fecha límite para liquidar. Si quiere pagar por transferencia, dale SOLO la CLABE, el banco, \
+dale su fecha límite para liquidar. Recomienda siempre pagar desde su portal (tarjeta, SPEI o efectivo en \
+tienda): se refleja al momento. La transferencia directa es la opción alterna: solo si el cliente la prefiere o \
+la pide, dale SOLO la CLABE, el banco, \
 el titular y el folio que trae datos_transferencia (de condiciones_de_pago o de mi_reservacion) y \
-pídele que escriba ese folio en el concepto: así el pago se identifica solo. Sin reservación no hay \
+pídele que escriba ese folio en el concepto: así el pago se identifica solo; avísale que ese pago se \
+verá reflejado cuando llegue al banco, no al momento. Sin reservación no hay \
 datos_transferencia: no des ninguna cuenta, ofrécele cotizar o pasar con una persona.
 - Si el cliente quiere su cotización formal o reservar, puedes crearla tú con crear_cotizacion \
 cuando ya tengas servicio, fecha libre, personas, la opción elegida (paquete, nivel o habitaciones), \

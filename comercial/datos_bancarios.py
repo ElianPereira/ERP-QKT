@@ -15,9 +15,11 @@ def folio(cotizacion) -> str:
 
 
 def instruccion_transferencia(cotizacion) -> str:
-    """«Transfiere a BBVA, CLABE …, a nombre de …; en el concepto escribe COT-145.»"""
-    return (f'Transfiere a {BANCO}, CLABE {CLABE}, a nombre de {TITULAR}; '
-            f'en el concepto escribe {folio(cotizacion)}.')
+    """La transferencia directa es la opción alterna: el portal (Openpay) refleja el pago al momento,
+    la transferencia solo cuando llega el estado de cuenta. El texto lo dice en ese orden."""
+    return (f'Lo más rápido es pagar desde tu portal (tarjeta, SPEI o efectivo en tienda): tu pago se refleja '
+            f'al momento. Si prefieres transferir directo desde tu banco: {BANCO}, CLABE {CLABE}, a nombre de '
+            f'{TITULAR}; escribe {folio(cotizacion)} en el concepto. Ese pago se refleja cuando lo recibimos en el banco.')
 
 
 def datos_transferencia(cotizacion) -> dict:
