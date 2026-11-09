@@ -284,6 +284,14 @@ salvo que queden obsoletas.
   condonación, de ventas CONFIRMADA/EJECUTADA/CERRADA no históricas; con < 5 ventas cae al manual. Memorizado por instancia.
   Supuestos muestra «Ciclo según tus ventas» por servicio y el tablero, el ciclo efectivo.
 
+- 2026-11-09 — **Cierre de las transferencias por folio** (PR #483, #484, #486 y #488). El abogado dio el visto bueno al cambio de la
+  cláusula Tercera del contrato propio (CLABE + folio en el concepto). `evaluar_agente` 3/3 en producción
+  (`transferencia_sin_reservacion`, `formas_pago`, `mi_saldo`). **Lo no obvio**: los dos casos fallaban porque `condiciones_de_pago`
+  exigía `servicio`; sin él el modelo no podía llamarla y usaba `mi_reservacion`. Retocar el prompt (#486) no lo arregló: ahora
+  `servicio` es opcional y sin él devuelve los tres (`por_servicio`). Si un eval dice «no usó la herramienta X», revisar primero
+  si sus parámetros obligatorios son datos que el cliente no suele dar. Pendiente del propietario: revisar el bloque de transferencia
+  del portal a 390 px.
+
 - 2026-11-07 — **El contrato propio también pide el folio en la transferencia** (decisión del propietario; seguimiento del PR #483). La
   cláusula Tercera de `contratos/propio/contrato.html` ahora dice que también puede pagarse por transferencia a la CLABE de
   `comercial/datos_bancarios.py` escribiendo `COT-NNN` en el concepto (los tres servicios comparten la cláusula). Sin migración.
