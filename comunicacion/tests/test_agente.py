@@ -484,6 +484,11 @@ class HerramientasTest(TestCase):
             servicio='PASADIA', fecha=cerca)['paga_total_desde_el_inicio'])
         self.assertIn('error', herramientas_agente.condiciones_de_pago(servicio='BODA'))
 
+    def test_condiciones_de_pago_sin_servicio_trae_los_tres(self):
+        r = herramientas_agente.condiciones_de_pago()
+        self.assertEqual([x['servicio'] for x in r['por_servicio']], ['EVENTO', 'PASADIA', 'HOSPEDAJE'])
+        self.assertNotIn('datos_transferencia', r)
+
     def test_el_apartado_no_contradice_el_minimo_del_primer_pago(self):
         # Un % de apartado menor al 50% del primer pago (dato viejo en producción)
         # no debe llegarle al cliente como una cifra distinta.

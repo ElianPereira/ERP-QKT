@@ -129,7 +129,8 @@ HERRAMIENTAS = [
         'description': (
             'Reglas de pago de la Quinta: cuánto se paga para apartar, cuándo se liquida y cómo se '
             'paga. Úsala para cualquier pregunta de anticipo, liquidación o formas de pago. '
-            'Con la fecha del cliente da también su fecha límite para liquidar.'
+            'Con la fecha del cliente da también su fecha límite para liquidar. El servicio es '
+            'opcional: si no lo dijo, llámala sin él y recibes las condiciones de los tres.'
         ),
         'input_schema': {
             'type': 'object',
@@ -137,7 +138,7 @@ HERRAMIENTAS = [
                 'servicio': {'type': 'string', 'enum': list(SERVICIOS)},
                 'fecha': {'type': 'string', 'description': 'AAAA-MM-DD, si el cliente la dio.'},
             },
-            'required': ['servicio'],
+            'required': [],
             'additionalProperties': False,
         },
     },
@@ -614,8 +615,25 @@ def condiciones_de_pago(conv=None, servicio=None, fecha=None):
     transferir con el folio de cada una (`datos_transferencia`). Sin reservación
     no se da ninguna cuenta: el folio en el concepto es lo que identifica el pago."""
     servicio = str(servicio or '').upper()
-    if servicio not in SERVICIOS:
+    if servicio and servicio not in SERVICIOS:
         return {'error': 'Servicio no válido: EVENTO, PASADIA u HOSPEDAJE.'}
+    inicio = None
+    if fecha:
+        inicio, error = _fecha(fecha)
+        if error:
+            return {'error': error}
+    if servicio:
+        resultado = _condiciones_de_servicio(servicio, inicio)
+    else:
+        resultado = {'por_servicio': [_condiciones_de_servicio(sv, inicio) for sv in SERVICIOS]}
+    transferencias = [datos_bancarios.datos_transferencia(c)
+                      for c in cotizaciones_del_telefono(getattr(conv, 'telefono', '')) if c.saldo_pendiente() > 0]
+    if transferencias:
+        resultado['datos_transferencia'] = transferencias
+    return resultado
+
+
+def _condiciones_de_servicio(servicio, inicio=None):
     # Instancia sin guardar: solo para leer las mismas reglas que usa el
     # portal (el % configurado en ConstanteSistema y los días por servicio).
     referencia = Cotizacion(tipo_servicio=servicio)
@@ -634,17 +652,10 @@ def condiciones_de_pago(conv=None, servicio=None, fecha=None):
         'como_se_paga': ('En línea desde el portal del cliente, que recibe al cotizar en el cotizador web: '
                          'tarjeta de crédito o débito, transferencia SPEI o efectivo en tiendas.'),
     }
-    if fecha:
-        inicio, error = _fecha(fecha)
-        if error:
-            return {'error': error}
+    if inicio:
         limite = inicio - timedelta(days=dias)
         resultado['fecha_limite_para_liquidar'] = limite.isoformat()
         resultado['paga_total_desde_el_inicio'] = limite <= timezone.localdate()
-    transferencias = [datos_bancarios.datos_transferencia(c)
-                      for c in cotizaciones_del_telefono(getattr(conv, 'telefono', '')) if c.saldo_pendiente() > 0]
-    if transferencias:
-        resultado['datos_transferencia'] = transferencias
     return resultado
 
 
