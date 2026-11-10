@@ -545,7 +545,7 @@ def resolver(decision_id: int, accion: str, usuario) -> tuple:
         return False, 'Acción no válida.'
     ahora = timezone.now()
     with transaction.atomic():
-        decision = Decision.objects.select_for_update().select_related('hallazgo').filter(pk=decision_id).first()
+        decision = Decision.objects.select_for_update(of=('self',)).select_related('hallazgo').filter(pk=decision_id).first()
         if decision is None:
             return False, 'No existe esa decisión.'
         if not decision.abierta:
