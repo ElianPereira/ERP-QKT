@@ -55,6 +55,7 @@ from contabilidad.views_estados_correo import estado_cuenta_correo_webhook
 from core_erp.descargas import descargar_archivo_privado
 from core_erp.ratelimit import _client_ip, login_bloqueado
 from core_erp.views_csp import csp_report
+from core_erp.views_seo import apple_touch_icon, favicon, robots_txt, sitemap_xml
 from core_erp.views_totp import totp_activar_view, totp_verificar_view
 
 logger = logging.getLogger(__name__)
@@ -121,6 +122,13 @@ urlpatterns = [
     # antes de la línea 6 (el resto del admin de Django) para que el gate del
     # middleware pueda redirigir aquí sin que "admin/" las intercepte primero.
     path('csp-report/', csp_report, name='csp_report'),
+
+    # --- SEO / iconos que los navegadores y buscadores piden solos ---
+    path('robots.txt', robots_txt, name='robots_txt'),
+    path('sitemap.xml', sitemap_xml, name='sitemap_xml'),
+    path('favicon.ico', favicon, name='favicon'),
+    path('apple-touch-icon.png', apple_touch_icon, name='apple_touch_icon'),
+    path('apple-touch-icon-precomposed.png', apple_touch_icon),
     path('admin/2fa/activar/', totp_activar_view, name='totp_activar'),
     path('admin/2fa/verificar/', totp_verificar_view, name='totp_verificar'),
 

@@ -101,9 +101,9 @@ PUBLIC_CSP = (
     "img-src 'self' data: https://media.quintakooxtanil.com; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; "
     "font-src 'self' https://fonts.gstatic.com data:; "
-    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://static.cloudflareinsights.com; "
     "frame-src https://www.google.com; "
-    "connect-src 'self'; "
+    "connect-src 'self' https://cloudflareinsights.com; "
     "upgrade-insecure-requests; "
     f"report-uri {CSP_REPORT_URI}"
 )
@@ -120,8 +120,8 @@ PORTAL_CSP_REPORT_ONLY_POLICY = (
     "img-src 'self' data: https://media.quintakooxtanil.com; "
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; "
     "font-src 'self' https://fonts.gstatic.com https://cdnjs.cloudflare.com data:; "
-    "script-src 'self' 'unsafe-inline' https://openpay.s3.amazonaws.com; "
-    "connect-src 'self' https://api.openpay.mx https://sandbox-api.openpay.mx; "
+    "script-src 'self' 'unsafe-inline' https://openpay.s3.amazonaws.com https://static.cloudflareinsights.com; "
+    "connect-src 'self' https://api.openpay.mx https://sandbox-api.openpay.mx https://cloudflareinsights.com; "
     "frame-src https://www.google.com; "
     f"report-uri {CSP_REPORT_URI}"
 )
@@ -168,7 +168,7 @@ def politica_publica(path):
         PUBLIC_CSP
         .replace("img-src 'self' data: ", "img-src 'self' data: https://www.facebook.com ")
         .replace("script-src 'self' 'unsafe-inline' ", "script-src 'self' 'unsafe-inline' https://connect.facebook.net ")
-        .replace("connect-src 'self'; ", "connect-src 'self' https://www.facebook.com https://connect.facebook.net; ")
+        .replace("connect-src 'self' ", "connect-src 'self' https://www.facebook.com https://connect.facebook.net ")
     )
 
 
