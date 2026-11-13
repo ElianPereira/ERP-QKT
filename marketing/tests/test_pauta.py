@@ -220,6 +220,10 @@ class ConciliacionTest(TestCase):
             codigo_sat='699.81', nombre='Publicidad', tipo='GASTO', naturaleza='D', nivel=3)
         ConfiguracionContable.objects.update_or_create(
             operacion='GASTO_PUBLICIDAD', defaults={'cuenta': self.publicidad, 'activa': True})
+        self.no_deducible = CuentaContable.objects.create(
+            codigo_sat='699.82', nombre='Venta no deducible', tipo='GASTO', naturaleza='D', nivel=3)
+        ConfiguracionContable.objects.update_or_create(
+            operacion='NO_DEDUCIBLE_VENTA', defaults={'cuenta': self.no_deducible, 'activa': True})
         self.cuenta = CuentaBancaria.objects.create(
             nombre='BBVA Mkt', banco='BBVA', clabe='012345678901234888', cuenta_contable=self.banco,
             unidad_negocio=UnidadNegocio.objects.get(clave='QUINTA'))
@@ -286,7 +290,7 @@ class ConciliacionTest(TestCase):
             tipo='D', folio=Poliza.siguiente_folio('D', fecha), fecha=fecha, estado=estado, origen='MANUAL',
             concepto=f"{conciliacion.PREFIJOS_EXTERNOS['META']} (tarjeta ····5035) {fecha:%d/%m/%Y} ${monto}",
             unidad_negocio=self.cuenta.unidad_negocio, created_by=self.usuario)
-        MovimientoContable.objects.create(poliza=poliza, cuenta=self.publicidad, debe=Decimal(monto))
+        MovimientoContable.objects.create(poliza=poliza, cuenta=self.no_deducible, debe=Decimal(monto))
         MovimientoContable.objects.create(poliza=poliza, cuenta=self.banco, haber=Decimal(monto))
 
     def test_pauta_pagada_con_otra_tarjeta_se_suma_al_banco(self):

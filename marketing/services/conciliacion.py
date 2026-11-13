@@ -76,8 +76,9 @@ def cargos_bancarios(anio: int, mes: int, plataforma: str = 'META') -> dict:
 
 def pagos_externos(anio: int, mes: int, plataforma: str = 'META') -> Decimal:
     """Pauta del mes pagada con una tarjeta que no es de la cuenta bancaria del ERP: lo que cargan a la cuenta
-    de publicidad las pólizas APLICADAS con el concepto de `PREFIJOS_EXTERNOS`."""
-    config = ConfiguracionContable.objects.filter(operacion='GASTO_PUBLICIDAD', activa=True).select_related('cuenta').first()
+    de publicidad no deducible (`NO_DEDUCIBLE_VENTA`, 601.05.03: sin CFDI) las pólizas APLICADAS con el concepto
+    de `PREFIJOS_EXTERNOS`."""
+    config = ConfiguracionContable.objects.filter(operacion='NO_DEDUCIBLE_VENTA', activa=True).select_related('cuenta').first()
     if not config:
         return Decimal('0.00')
     inicio, fin = date(anio, mes, 1), date(anio, mes, calendar.monthrange(anio, mes)[1])

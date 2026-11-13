@@ -4,7 +4,8 @@ Registra la pauta de Meta que se cobró a tarjetas que no son de la cuenta banca
 Contexto: el informe de facturación de Meta (jul–nov 2026) muestra cobros con otras tarjetas
 (Mastercard ····5035 y ····3777, atribuidas por el propietario a Revolut) que nunca aparecen en el
 estado de cuenta de BBVA y por eso la conciliación de pauta no cuadraba. Cada cobro es una póliza
-de DIARIO, APLICADA: DEBE Publicidad (`GASTO_PUBLICIDAD`) / HABER Aportaciones del dueño
+de DIARIO, APLICADA: DEBE Gasto de venta no deducible (`NO_DEDUCIBLE_VENTA`, 601.05.03: sin CFDI, criterio
+confirmado con el contador) / HABER Aportaciones del dueño
 (`APORTACIONES_DUENO`), con el concepto de `conciliacion.PREFIJOS_EXTERNOS['META']`, que es lo que
 la conciliación suma como «pagado con otra tarjeta». Meta factura con IVA 0 %, así que no hay IVA.
 
@@ -47,9 +48,9 @@ class Command(BaseCommand):
         parser.add_argument('--aplicar', action='store_true', help='Escribe las pólizas (sin esto solo simula).')
 
     def handle(self, *args, **opciones):
-        gasto = ConfiguracionContable.obtener_cuenta('GASTO_PUBLICIDAD')
+        gasto = ConfiguracionContable.obtener_cuenta('NO_DEDUCIBLE_VENTA')
         aportacion = ConfiguracionContable.obtener_cuenta('APORTACIONES_DUENO')
-        faltan = [n for n, c in (('GASTO_PUBLICIDAD', gasto), ('APORTACIONES_DUENO', aportacion)) if c is None]
+        faltan = [n for n, c in (('NO_DEDUCIBLE_VENTA', gasto), ('APORTACIONES_DUENO', aportacion)) if c is None]
         if faltan:
             raise CommandError(f"Falta configurar la cuenta de: {', '.join(faltan)} (Contabilidad → Configuración contable).")
         unidad = UnidadNegocio.objects.filter(clave='QUINTA').first()
