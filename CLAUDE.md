@@ -277,6 +277,13 @@ salvo que queden obsoletas.
 
 
 
+- 2026-11-13 — **Menos ruido de escáneres en los logs** (sin zonas restringidas, sin migración). Un barrido de ~250 rutas (`.env`, `.git`,
+  `wp-*`, `actuator`…) emitía 2 líneas por 404 (WARNING de `django.request` + access log de gunicorn) y Railway llegó a su tope de
+  500 logs/s (416 mensajes perdidos). `core_erp.middleware.SinRuidoDe404Filter` descarta solo el WARNING de 404 de `django.request`; el
+  access log conserva ruta, código y user-agent, y los 5xx no se tocan. Verificado en producción tras PR #491: robots, sitemap, favicon y
+  apple-touch-icon dan 200 y una visita real en Chrome no genera violación CSP del beacon de Cloudflare (la única violación vino del crawler
+  `meta-webindexer`, copia vieja en caché).
+
 - 2026-11-07 — **Ciclo de venta medido con el histórico** (pedido del propietario; sin zonas restringidas; migración
   `marketing.0009`, un campo). `ParametroMarketing.ciclo_automatico` (default True; el juego activo lo hereda al migrar):
   `ciclo_de(tipo)` usa `services/ciclo.ciclo_historico` = **percentil 80** de días entre el primer contacto (lo más antiguo
