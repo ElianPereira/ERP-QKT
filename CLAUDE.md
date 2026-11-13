@@ -277,6 +277,18 @@ salvo que queden obsoletas.
 
 
 
+- 2026-11-13 — **Marketing: la ejecución real contra Meta quedó validada** (sin cambios de código). Tras el PR #490, la decisión #2
+  «Pausar el anuncio "Eventos"» se aprobó (10/11 11:41) y se ejecutó (10/11 14:02, hora de Mérida) con
+  `ERP_MARKETING_ACCIONES_ACTIVAS=True`: la decisión quedó **Ejecutada**, los logs de `web` muestran la consulta y el envío a
+  `graph.facebook.com` en ese minuto y Meta (leído con Windsor, solo lectura) mostró el anuncio en PAUSED con su campaña y conjunto
+  ACTIVE. Primera prueba real de `ProveedorMeta.pausar`; subir presupuesto sigue sin probarse (falta
+  `ERP_MARKETING_PRESUPUESTO_MAX_DIARIO`). **Pendiente abierto**: la decisión informativa «El gasto de Meta de 10/2026 no cuadra con
+  el banco» (`conciliacion.cargos_bancarios` solo cuenta cargos cuya póliza APLICADA toca la cuenta de `GASTO_PUBLICIDAD`, 601.04.01;
+  un cargo sin póliza, en BORRADOR o en otra cuenta —p. ej. no deducible 601.05.x o 601.99— se reporta como «sin clasificar»).
+  Los cargos de Meta sin CFDI **no generan Compra**: los asienta la regla «Publicidad Meta / Facebook» como póliza BANCO, por eso
+  «Compras» solo muestra los que traen CFDI. Para saber si es dato o código, revisar los movimientos FACEBK/FACEBOOK/META de
+  ago–oct en el estado de cuenta y su póliza (estado y cuenta).
+
 - 2026-11-13 — **Menos ruido de escáneres en los logs** (sin zonas restringidas, sin migración). Un barrido de ~250 rutas (`.env`, `.git`,
   `wp-*`, `actuator`…) emitía 2 líneas por 404 (WARNING de `django.request` + access log de gunicorn) y Railway llegó a su tope de
   500 logs/s (416 mensajes perdidos). `core_erp.middleware.SinRuidoDe404Filter` descarta solo el WARNING de 404 de `django.request`; el

@@ -281,6 +281,26 @@ class ConciliacionTest(TestCase):
         self.assertFalse(Pendiente.objects.filter(clave_idempotencia__startswith='marketing_conciliacion').exists())
 
 
+    def test_diagnostico_es_de_solo_lectura_y_explica_cada_cargo(self):
+        self.cargo('1740.00')
+        self.cargo('300.00', descripcion='PAGO FACEBK *SIN POLIZA', clasificar=False, dia=11)
+        self.cargo('80.00', descripcion='SUPERMERCADO', clasificar=False, dia=12)
+        polizas, pendientes = Poliza.objects.count(), Pendiente.objects.count()
+        salida = StringIO()
+        call_command('diagnosticar_pauta_banco', '--mes', '2026-09', stdout=salida)
+        texto = salida.getvalue()
+        self.assertIn('CUENTA', texto)
+        self.assertIn('SIN PÓLIZA', texto)
+        self.assertNotIn('SUPERMERCADO', texto)
+        self.assertIn('Clasificados: 1 por $1740.00. Sin clasificar: 1.', texto)
+        self.assertEqual((Poliza.objects.count(), Pendiente.objects.count()), (polizas, pendientes))
+        self.assertEqual(set(GastoPublicitario.objects.values_list('estado_conciliacion', flat=True)), {'PENDIENTE'})
+
+    def test_diagnostico_rechaza_mes_invalido(self):
+        with self.assertRaises(CommandError):
+            call_command('diagnosticar_pauta_banco', '--mes', '2026-13', stdout=StringIO())
+
+
 class AdminPautaTest(TestCase):
     def test_listas_y_alta_manual(self):
         d = date(2026, 10, 1)
