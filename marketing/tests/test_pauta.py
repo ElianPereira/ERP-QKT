@@ -220,6 +220,10 @@ class ConciliacionTest(TestCase):
             codigo_sat='699.81', nombre='Publicidad', tipo='GASTO', naturaleza='D', nivel=3)
         ConfiguracionContable.objects.update_or_create(
             operacion='GASTO_PUBLICIDAD', defaults={'cuenta': self.publicidad, 'activa': True})
+        self.no_deducible = CuentaContable.objects.create(
+            codigo_sat='699.82', nombre='Venta no deducible', tipo='GASTO', naturaleza='D', nivel=3)
+        ConfiguracionContable.objects.update_or_create(
+            operacion='NO_DEDUCIBLE_VENTA', defaults={'cuenta': self.no_deducible, 'activa': True})
         self.cuenta = CuentaBancaria.objects.create(
             nombre='BBVA Mkt', banco='BBVA', clabe='012345678901234888', cuenta_contable=self.banco,
             unidad_negocio=UnidadNegocio.objects.get(clave='QUINTA'))
@@ -244,32 +248,32 @@ class ConciliacionTest(TestCase):
             mov.save()
         return mov
 
-    def test_cuadra_con_iva_incluido(self):
-        self.cargo('1740.00')  # 1,500 + 16% de IVA
+    def test_cuadra_sin_iva_porque_meta_factura_con_iva_cero(self):
+        self.cargo('1500.00')
         r = conciliacion.conciliar_mes(2026, 9)
-        self.assertEqual((r['esperado'], r['banco'], r['estado']), (Decimal('1740.00'), Decimal('1740.00'), 'CONCILIADO'))
+        self.assertEqual((r['esperado'], r['banco'], r['estado']), (Decimal('1500.00'), Decimal('1500.00'), 'CONCILIADO'))
         self.assertEqual(set(GastoPublicitario.objects.values_list('estado_conciliacion', flat=True)), {'CONCILIADO'})
         self.assertFalse(Pendiente.objects.filter(clave_idempotencia__startswith='marketing_conciliacion').exists())
 
     def test_dentro_de_la_tolerancia(self):
-        self.cargo('1800.00')  # +60, bajo el piso de 500
+        self.cargo('1560.00')  # +60, bajo el piso de 500
         self.assertEqual(conciliacion.conciliar_mes(2026, 9)['estado'], 'CONCILIADO')
 
     def test_no_cuadra_deja_un_pendiente_por_mes(self):
         self.cargo('900.00')
         for _ in range(2):
             r = conciliacion.conciliar_mes(2026, 9)
-        self.assertEqual((r['estado'], r['diferencia']), ('DIFERENCIA', Decimal('-840.00')))
+        self.assertEqual((r['estado'], r['diferencia']), ('DIFERENCIA', Decimal('-600.00')))
         self.assertEqual(Pendiente.objects.filter(clave_idempotencia='marketing_conciliacion:2026-09').count(), 1)
         self.assertEqual(set(GastoPublicitario.objects.values_list('estado_conciliacion', flat=True)), {'DIFERENCIA'})
 
     def test_tolerancia_es_parametro(self):
-        self.cargo('1800.00')
+        self.cargo('1560.00')
         self.assertEqual(conciliacion.conciliar_mes(2026, 9, tolerancia_pct='0', tolerancia_minima='10')['estado'],
                          'DIFERENCIA')
 
     def test_cargo_sin_clasificar_no_cuenta_pero_se_reporta(self):
-        self.cargo('1740.00', clasificar=False)
+        self.cargo('1500.00', clasificar=False)
         self.cargo('50.00', descripcion='PAGO DE LUZ')
         r = conciliacion.conciliar_mes(2026, 9)
         self.assertEqual((r['banco'], r['sin_clasificar'], r['estado']), (Decimal('0.00'), 1, 'DIFERENCIA'))
@@ -280,6 +284,45 @@ class ConciliacionTest(TestCase):
         self.assertEqual(r['estado'], 'PENDIENTE')
         self.assertFalse(Pendiente.objects.filter(clave_idempotencia__startswith='marketing_conciliacion').exists())
 
+
+    def poliza_externa(self, fecha, monto, estado='APLICADA'):
+        poliza = Poliza.objects.create(
+            tipo='D', folio=Poliza.siguiente_folio('D', fecha), fecha=fecha, estado=estado, origen='MANUAL',
+            concepto=f"{conciliacion.PREFIJOS_EXTERNOS['META']} (tarjeta ····5035) {fecha:%d/%m/%Y} ${monto}",
+            unidad_negocio=self.cuenta.unidad_negocio, created_by=self.usuario)
+        MovimientoContable.objects.create(poliza=poliza, cuenta=self.no_deducible, debe=Decimal(monto))
+        MovimientoContable.objects.create(poliza=poliza, cuenta=self.banco, haber=Decimal(monto))
+
+    def test_pauta_pagada_con_otra_tarjeta_se_suma_al_banco(self):
+        self.cargo('1000.00')
+        self.poliza_externa(date(2026, 9, 20), '500.00')
+        self.poliza_externa(date(2026, 9, 21), '300.00', estado='BORRADOR')  # sin aplicar no cuenta
+        self.poliza_externa(date(2026, 10, 2), '700.00')  # otro mes no cuenta
+        r = conciliacion.conciliar_mes(2026, 9)
+        self.assertEqual((r['banco'], r['externos'], r['diferencia'], r['estado']),
+                         (Decimal('1000.00'), Decimal('500.00'), Decimal('0.00'), 'CONCILIADO'))
+
+    def test_registrar_pauta_externa_simula_y_luego_aplica_sin_duplicar(self):
+        from marketing.management.commands.registrar_pauta_externa import COBROS
+        ConfiguracionContable.objects.update_or_create(
+            operacion='APORTACIONES_DUENO', defaults={'cuenta': CuentaContable.objects.create(
+                codigo_sat='399.81', nombre='Aportaciones', tipo='CAPITAL', naturaleza='A', nivel=3), 'activa': True})
+        antes = Poliza.objects.count()
+        call_command('registrar_pauta_externa', stdout=StringIO())
+        self.assertEqual(Poliza.objects.count(), antes)  # simula por defecto
+        salida = StringIO()
+        call_command('registrar_pauta_externa', '--aplicar', stdout=salida)
+        self.assertEqual(Poliza.objects.count(), antes + len(COBROS))
+        self.assertFalse(Poliza.objects.exclude(estado='APLICADA').filter(origen='MANUAL').exists())
+        call_command('registrar_pauta_externa', '--aplicar', stdout=salida)  # idempotente
+        self.assertEqual(Poliza.objects.count(), antes + len(COBROS))
+        self.assertEqual(conciliacion.pagos_externos(2026, 9), Decimal('1201.85'))
+        self.assertEqual(conciliacion.pagos_externos(2026, 8), Decimal('405.44'))
+
+    def test_registrar_pauta_externa_exige_la_cuenta_de_aportaciones(self):
+        ConfiguracionContable.objects.filter(operacion='APORTACIONES_DUENO').delete()
+        with self.assertRaises(CommandError):
+            call_command('registrar_pauta_externa', '--aplicar', stdout=StringIO())
 
     def test_diagnostico_es_de_solo_lectura_y_explica_cada_cargo(self):
         self.cargo('1740.00')
