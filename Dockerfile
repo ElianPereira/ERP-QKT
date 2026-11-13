@@ -1,6 +1,6 @@
 # Misma versión de Python con la que CI prueba y se compiló requirements.lock (3.12),
 # sobre Debian trixie (mismos paquetes de WeasyPrint). Dependabot propone el digest.
-FROM python:3.12-slim-trixie
+FROM python:3.15-slim-trixie
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 WORKDIR /app
