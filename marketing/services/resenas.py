@@ -32,6 +32,15 @@ class GoogleError(Exception):
     pass
 
 
+def _motivo(r) -> str:
+    """`status` y `message` del error que devuelve Google (nunca el cuerpo completo ni el token)."""
+    try:
+        error = r.json().get('error') or {}
+        return f" {error.get('status', '')}: {str(error.get('message', ''))[:200]}".rstrip(': ')
+    except (ValueError, AttributeError):
+        return ''
+
+
 def configurado() -> bool:
     return all(getattr(settings, n, '') for n in (
         'GOOGLE_BUSINESS_CLIENT_ID', 'GOOGLE_BUSINESS_CLIENT_SECRET',
@@ -58,7 +67,7 @@ def listar_resenas() -> list:
             params['pageToken'] = pagina
         r = requests.get(url, params=params, headers={'Authorization': f'Bearer {token}'}, timeout=TIMEOUT)
         if r.status_code != 200:
-            raise GoogleError(f'Google respondió HTTP {r.status_code} al listar reseñas.')
+            raise GoogleError(f'Google respondió HTTP {r.status_code} al listar reseñas.{_motivo(r)}')
         cuerpo = r.json()
         resenas.extend(cuerpo.get('reviews') or [])
         pagina = cuerpo.get('nextPageToken')
