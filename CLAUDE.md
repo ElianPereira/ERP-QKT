@@ -277,6 +277,17 @@ salvo que queden obsoletas.
 
 
 
+- 2026-11-13 — **Conciliación de pauta de Meta: IVA 0 % y cobros con otras tarjetas** (sin zonas restringidas, sin migración). El informe
+  de facturación de Meta Platforms Ireland (jul–nov 2026) trae «VAT Rate: 0%»: la conciliación comparaba el gasto × 1.16 y daba
+  falsas diferencias. Ahora `conciliacion.PLATAFORMAS_CON_IVA` = Meta sin IVA, Google con IVA (sin verificar con una factura real).
+  El mismo informe mostró cobros con Mastercard ····5035 (20/08, 01/09) y ····3777 (17 y 24/09) que nunca pasaron por BBVA (el propietario
+  los atribuye a Revolut): `registrar_pauta_externa [--aplicar]` los asienta como pólizas de diario (DEBE `GASTO_PUBLICIDAD` / HABER
+  `APORTACIONES_DUENO`, concepto `PREFIJOS_EXTERNOS['META']`, idempotente, simula por defecto) y `conciliar_mes` los suma como `externos`.
+  Verificado a mano con octubre: cargos de BBVA $3,314.24 = cobros de Meta hasta el 27/10 ($3,292.05) + un cargo FACEBK de $22.19 que no
+  está en el informe; el cobro de $100.24 del 30/10 y los de $1,000 de nov cubren el gasto de fin de mes (Meta cobra por umbral), por eso
+  un mes puede seguir saliendo con diferencia por tiempos. Pendiente: tratamiento fiscal con el contador (la pauta sin CFDI va a la cuenta
+  deducible 601.04.01, igual que la regla bancaria) y valorar comparar de forma acumulada.
+
 - 2026-11-13 — **Marketing: la ejecución real contra Meta quedó validada** (sin cambios de código). Tras el PR #490, la decisión #2
   «Pausar el anuncio "Eventos"» se aprobó (10/11 11:41) y se ejecutó (10/11 14:02, hora de Mérida) con
   `ERP_MARKETING_ACCIONES_ACTIVAS=True`: la decisión quedó **Ejecutada**, los logs de `web` muestran la consulta y el envío a

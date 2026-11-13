@@ -56,7 +56,10 @@ class Command(BaseCommand):
 
         gasto = impuestos.centavos(GastoPublicitario.objects.filter(
             fecha__range=(inicio, fin), campana__plataforma=plataforma).aggregate(t=Sum('monto'))['t'] or 0)
-        self.stdout.write(f'{plataforma} {mes:02d}/{anio}: pauta ${gasto} sin IVA, ${impuestos.con_iva(gasto)} con IVA.')
+        con_iva = conciliacion.PLATAFORMAS_CON_IVA[plataforma]
+        esperado = impuestos.con_iva(gasto) if con_iva else gasto
+        self.stdout.write(f'{plataforma} {mes:02d}/{anio}: pauta ${gasto} sin IVA'
+                          f'{f", ${esperado} con IVA" if con_iva else " (esta plataforma factura con IVA 0 %)"}.')
         self.stdout.write(f'Cuenta de publicidad configurada: {prefijo or "SIN CONFIGURAR"}.')
 
         movimientos = MovimientoEstadoCuenta.objects.filter(fecha__range=(inicio, fin), cargo__gt=0) \
@@ -85,5 +88,7 @@ class Command(BaseCommand):
                 f'{(poliza.estado + " " + poliza.origen) if poliza else "SIN PÓLIZA"} | '
                 f'debe: {", ".join(cuentas) or "-"} | regla: {regla} | '
                 f'{"CUENTA" if clasificado else "NO CUENTA"} | {mov.descripcion[:60]}')
+        externos = conciliacion.pagos_externos(anio, mes, plataforma)
         self.stdout.write(f'Clasificados: {contados} por ${total}. Sin clasificar: {sin_clasificar}.')
-        self.stdout.write(f'Diferencia contra la pauta con IVA: ${impuestos.centavos(total - impuestos.con_iva(gasto))}.')
+        self.stdout.write(f'Pagados con otra tarjeta (pólizas fuera de BBVA): ${externos}.')
+        self.stdout.write(f'Diferencia contra la pauta: ${impuestos.centavos(total + externos - esperado)}.')
