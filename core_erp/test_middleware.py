@@ -109,3 +109,19 @@ class DisallowedHostQuedaRegistradoTest(TestCase):
 
         self.assertEqual(respuesta.status_code, 400)
         self.assertIn('host-no-permitido.example.com', '\n'.join(logs.output))
+
+
+class SinRuidoDe404Test(TestCase):
+    """Un 404 ya no emite WARNING en django.request (queda en el access log);
+    un 500 sí sigue registrándose."""
+
+    def test_un_404_no_genera_warning(self):
+        with self.assertNoLogs('django.request', level='WARNING'):
+            respuesta = self.client.get('/.env')
+        self.assertEqual(respuesta.status_code, 404)
+
+    def test_un_500_sigue_registrandose(self):
+        from core_erp.middleware import SinRuidoDe404Filter
+        registro = logging.LogRecord('django.request', logging.ERROR, __file__, 1, 'x', None, None)
+        registro.status_code = 500
+        self.assertTrue(SinRuidoDe404Filter().filter(registro))

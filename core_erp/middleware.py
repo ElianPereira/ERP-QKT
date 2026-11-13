@@ -60,6 +60,17 @@ class CorrelationIdFilter(logging.Filter):
         return True
 
 
+class SinRuidoDe404Filter(logging.Filter):
+    """Descarta el WARNING "Not Found" de `django.request`. Los escáneres
+    (.env, .git, wp-admin…) disparan cientos por segundo y con el access log
+    de gunicorn Railway llegaba a su tope de 500 logs/s y tiraba mensajes
+    reales. La petición sigue en el access log (ruta, código y user-agent);
+    5xx y demás warnings de `django.request` no se tocan."""
+
+    def filter(self, record):
+        return getattr(record, 'status_code', None) != 404
+
+
 class CorrelationIdMiddleware:
     """Genera un ID corto por request (nunca confía en uno que mande el
     cliente: aceptar `X-Correlation-ID` de fuera permitiría inyectar

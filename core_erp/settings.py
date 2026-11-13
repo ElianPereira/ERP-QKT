@@ -166,6 +166,7 @@ LOGGING = {
     # separar qué línea es de qué request).
     'filters': {
         'correlation_id': {'()': 'core_erp.middleware.CorrelationIdFilter'},
+        'sin_404': {'()': 'core_erp.middleware.SinRuidoDe404Filter'},
     },
     'formatters': {
         'con_correlation_id': {
@@ -188,6 +189,12 @@ LOGGING = {
         # el logger raíz, sin nuestro formatter — cada línea saldría
         # duplicada, una con correlation_id y otra sin él.
         'django': {'handlers': ['console'], 'level': 'INFO', 'propagate': False},
+        # Los 404 de escáneres ya quedan en el access log de gunicorn; aquí se
+        # filtran para no duplicar cada uno y rozar el tope de Railway.
+        'django.request': {
+            'handlers': ['console'], 'level': 'INFO', 'propagate': False,
+            'filters': ['sin_404'],
+        },
         'weasyprint': {'handlers': ['console'], 'level': 'WARNING'},
         # Los logger.info del webhook Openpay (ej. el código de verificación al
         # registrar el webhook) deben verse en los Deploy Logs de Railway.
