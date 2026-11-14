@@ -55,6 +55,18 @@ def get_cuenta(operacion):
         return None
 
 
+def cuenta_banco_de(obj, metodo):
+    """Cuenta contable de bancos de un Pago/MovimientoDeposito: CAJA si es efectivo,
+    la de su cuenta bancaria si la trae, o BANCO_PRINCIPAL (comportamiento previo a
+    la segunda cuenta; el estado de cuenta reapunta si el banco real fue otro)."""
+    if metodo == 'EFECTIVO':
+        return get_cuenta('CAJA')
+    cuenta_bancaria = getattr(obj, 'cuenta_bancaria', None)
+    if cuenta_bancaria is not None and cuenta_bancaria.cuenta_contable_id:
+        return cuenta_bancaria.cuenta_contable
+    return get_cuenta('BANCO_PRINCIPAL')
+
+
 def get_unidad_negocio(clave):
     """Obtiene una unidad de negocio por clave."""
     try:
@@ -112,14 +124,7 @@ def crear_poliza_pago_cliente(sender, instance, created, **kwargs):
         return
 
     # ─── Determinar cuenta de cargo según método de pago ────────
-    if pago.metodo == 'EFECTIVO':
-        cuenta_cargo = get_cuenta('CAJA')
-    elif pago.metodo in ('TRANSFERENCIA', 'DEPOSITO'):
-        cuenta_cargo = get_cuenta('BANCO_PRINCIPAL')
-    elif pago.metodo in ('TARJETA_CREDITO', 'TARJETA_DEBITO'):
-        cuenta_cargo = get_cuenta('BANCO_PRINCIPAL')
-    else:
-        cuenta_cargo = get_cuenta('BANCO_PRINCIPAL')
+    cuenta_cargo = cuenta_banco_de(pago, pago.metodo)
 
     # ─── Determinar cuenta de abono principal ───────────────────
     # Anticipo si el evento no se ha ejecutado, Ingreso si ya se ejecutó
@@ -293,7 +298,7 @@ def crear_poliza_comision_tpv(pago):
 
     cuenta_gasto = get_cuenta('GASTO_BANCARIOS')
     cuenta_iva = get_cuenta('IVA_ACREDITABLE')
-    cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+    cuenta_banco = cuenta_banco_de(pago, pago.metodo)
     if not cuenta_gasto or not cuenta_banco:
         logger.warning(
             "Comisión TPV no registrada para Pago #%s: falta configuración contable "
@@ -385,10 +390,7 @@ def crear_poliza_ingreso_extra(pago):
     cotizacion = pago.cotizacion
     monto = Decimal(str(pago.monto))
 
-    if pago.metodo == 'EFECTIVO':
-        cuenta_cargo = get_cuenta('CAJA')
-    else:
-        cuenta_cargo = get_cuenta('BANCO_PRINCIPAL')
+    cuenta_cargo = cuenta_banco_de(pago, pago.metodo)
     cuenta_abono = get_cuenta('OTROS_INGRESOS_CLIENTE')
 
     if not cuenta_cargo or not cuenta_abono:
@@ -474,7 +476,9 @@ def crear_poliza_comision_openpay(transaccion, fee):
         return None  # ya registrada (idempotencia ante reintentos del webhook)
 
     cuenta_puente = get_cuenta('COMISIONES_POR_COMPROBAR')
-    cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+    # La comisión sigue la cuenta de su cobro (así comisiones_por_cobro() la encuentra).
+    pago_cobro = transaccion.pago
+    cuenta_banco = cuenta_banco_de(pago_cobro, pago_cobro.metodo) if pago_cobro else get_cuenta('BANCO_PRINCIPAL')
     if not cuenta_puente or not cuenta_banco:
         logger.warning(
             "Comisión Openpay no registrada para %s: falta configuración contable "
@@ -537,10 +541,7 @@ def crear_poliza_reembolso_cliente(pago):
     cotizacion = pago.cotizacion
     monto = Decimal(str(pago.monto))
 
-    if pago.metodo == 'EFECTIVO':
-        cuenta_banco = get_cuenta('CAJA')
-    else:
-        cuenta_banco = get_cuenta('BANCO_PRINCIPAL')
+    cuenta_banco = cuenta_banco_de(pago, pago.metodo)
 
     cuenta_anticipo = get_cuenta('ANTICIPO_CLIENTES')
     cuenta_iva = get_cuenta('IVA_TRASLADADO')
@@ -806,7 +807,7 @@ def crear_poliza_movimiento_deposito(sender, instance, created, **kwargs):
     cotizacion = mov.deposito.cotizacion
     monto = Decimal(str(mov.monto))
     cuenta_deposito = get_cuenta('DEPOSITOS_GARANTIA')
-    cuenta_banco = get_cuenta('CAJA') if mov.metodo == 'EFECTIVO' else get_cuenta('BANCO_PRINCIPAL')
+    cuenta_banco = cuenta_banco_de(mov, mov.metodo)
     unidad = get_unidad_negocio('QUINTA')
     if not cuenta_deposito or not unidad or monto <= 0:
         logger.warning(

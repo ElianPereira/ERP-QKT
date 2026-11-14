@@ -1331,6 +1331,23 @@ class ItemCotizacion(models.Model):
 
     def subtotal(self): return self.cantidad * self.precio_unitario
 
+def _validar_cuenta_bancaria(obj, metodos_sin_banco):
+    """El efectivo/condonación nunca lleva cuenta bancaria; la cuenta debe estar activa y con cuenta contable."""
+    cuenta = obj.cuenta_bancaria if obj.cuenta_bancaria_id else None
+    if cuenta is None:
+        return
+    if obj.metodo in metodos_sin_banco:
+        raise ValidationError({'cuenta_bancaria': 'Este método no pasa por el banco: deja la cuenta vacía.'})
+    if not cuenta.activa or not cuenta.cuenta_contable_id:
+        raise ValidationError({'cuenta_bancaria': 'La cuenta debe estar activa y ligada a una cuenta contable.'})
+
+
+def _pagadora_quinta():
+    from contabilidad.models import CuentaBancaria, UnidadNegocio
+    unidad = UnidadNegocio.objects.filter(clave='QUINTA').first()
+    return CuentaBancaria.pagadora(unidad.pk) if unidad else None
+
+
 class Pago(models.Model):
     METODOS = [('EFECTIVO', 'Efectivo'), ('TRANSFERENCIA', 'Transferencia Electrónica'), ('TARJETA_CREDITO', 'Tarjeta de Crédito'), ('TARJETA_DEBITO', 'Tarjeta de Débito'), ('CHEQUE', 'Cheque Nominativo'), ('DEPOSITO', 'Depósito en efectivo (ventanilla)'), ('PLATAFORMA', 'Plataforma'), ('CONDONACION', 'Condonación / Cortesía'), ('OTRO', 'Otro Método')]
     TIPOS = [('INGRESO', 'Ingreso'), ('REEMBOLSO', 'Reembolso')]
@@ -1352,6 +1369,10 @@ class Pago(models.Model):
     monto = models.DecimalField(max_digits=10, decimal_places=2)
     metodo = models.CharField(max_length=20, choices=METODOS, verbose_name='Método')
     referencia = models.CharField(max_length=100, blank=True)
+    cuenta_bancaria = models.ForeignKey(
+        'contabilidad.CuentaBancaria', null=True, blank=True, on_delete=models.PROTECT,
+        related_name='pagos', verbose_name='Cuenta bancaria',
+        help_text='Vacío = Banco principal. Si el banco real es otro, el estado de cuenta lo corrige.')
     comision_tpv = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True, default=Decimal('0.00'),
         verbose_name="Comisión de terminal (TPV)",
@@ -1375,6 +1396,7 @@ class Pago(models.Model):
     def clean(self):
         """Valida que el pago no exceda el saldo pendiente (no aplica a reembolsos
         ni a ingresos EXTRA, que no forman parte del precio de la venta)."""
+        _validar_cuenta_bancaria(self, ('EFECTIVO', 'CONDONACION'))
         if self.cotizacion_id and self.tipo == 'INGRESO' and self.concepto == 'VENTA':
             total_pagado = self.cotizacion.total_pagado_neto(excluir_pk=self.pk)
             saldo_disponible = self.cotizacion.precio_final - total_pagado
@@ -1396,6 +1418,9 @@ class Pago(models.Model):
                 })
 
     def save(self, *args, **kwargs):
+        if not self.pk and not self.cuenta_bancaria_id and self.tipo == 'REEMBOLSO' \
+                and self.metodo == 'TRANSFERENCIA':
+            self.cuenta_bancaria = _pagadora_quinta()  # egreso: sale de la cuenta pagadora
         with transaction.atomic():
             if self.cotizacion_id:
                 # Lock la cotización para evitar pagos simultáneos
@@ -1682,6 +1707,10 @@ class MovimientoDeposito(models.Model):
         related_name='movimiento_deposito',
         verbose_name='Transacción Openpay',
     )
+    cuenta_bancaria = models.ForeignKey(
+        'contabilidad.CuentaBancaria', null=True, blank=True, on_delete=models.PROTECT,
+        related_name='movimientos_deposito', verbose_name='Cuenta bancaria',
+        help_text='Vacío = Banco principal. Si el banco real es otro, el estado de cuenta lo corrige.')
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='Creado por')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='Creado el')
 
@@ -1692,6 +1721,16 @@ class MovimientoDeposito(models.Model):
 
     def __str__(self):
         return f"{self.get_tipo_display()} ${self.monto:,.2f} — COT-{self.deposito.cotizacion_id:03d}"
+
+    def clean(self):
+        super().clean()
+        _validar_cuenta_bancaria(self, ('EFECTIVO', 'NO_APLICA'))
+
+    def save(self, *args, **kwargs):
+        if not self.pk and not self.cuenta_bancaria_id and self.tipo == 'DEVOLUCION' \
+                and self.metodo == 'TRANSFERENCIA':
+            self.cuenta_bancaria = _pagadora_quinta()
+        super().save(*args, **kwargs)
 
 # --- COMPRA Y GASTO ---
 
@@ -1865,23 +1904,15 @@ class Compra(models.Model):
         if not self.pk and self.categoria == 'SIN_CLASIFICAR' and self.proveedor_id \
                 and self.proveedor.categoria_gasto:
             self.categoria = self.proveedor.categoria_gasto
-        # Cuenta de pago: igual que unidad_negocio, se asigna sola solo si no
-        # hay ambigüedad posible — una única cuenta bancaria activa para esa
-        # unidad de negocio. Con dos o más cuentas activas (o ninguna) se deja
-        # en blanco, exactamente como hoy: nunca se adivina cuál de varias.
-        # Un proveedor que cobra descontando de los depósitos (Openpay) o
-        # directo de la cuenta (BBVA) nunca se paga desde una cuenta:
-        # asignarla haría salir del banco dinero que ya salió.
+        # Cuenta de pago por defecto: la cuenta pagadora de la unidad (la única con rol PAGO o,
+        # sin ninguna, la única activa). Con ambigüedad se deja en blanco: nunca se adivina. Es
+        # solo un default: al conciliar, el estado de cuenta reapunta si el cargo salió de otra.
+        # Un proveedor que cobra descontando de los depósitos (Openpay) o directo de la cuenta
+        # (BBVA) nunca se paga desde una cuenta: asignarla haría salir del banco dinero que ya salió.
         if not self.pk and self.unidad_negocio_id and not self.cuenta_pago_id \
                 and not (self.proveedor_id and self.proveedor.no_se_paga_desde_banco):
             from contabilidad.models import CuentaBancaria
-            cuentas_activas = list(
-                CuentaBancaria.objects.filter(
-                    unidad_negocio_id=self.unidad_negocio_id, activa=True
-                )[:2]
-            )
-            if len(cuentas_activas) == 1:
-                self.cuenta_pago = cuentas_activas[0]
+            self.cuenta_pago = CuentaBancaria.pagadora(self.unidad_negocio_id)
         super().save(*args, **kwargs)
         if self.archivo_xml and self.pk:
             try:

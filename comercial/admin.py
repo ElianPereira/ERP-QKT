@@ -1124,9 +1124,14 @@ class PagoAdmin(admin.ModelAdmin):
     readonly_fields = ('usuario', 'created_at', 'updated_at')
     date_hierarchy = 'fecha_pago'
     actions = ['registrar_reembolso', 'reembolsar_en_openpay']
+
+    def get_readonly_fields(self, request, obj=None):
+        # La cuenta bancaria solo se elige al crear; cambiarla después reapunta la póliza (otro flujo).
+        extra = ('cuenta_bancaria',) if obj else ()
+        return tuple(self.readonly_fields) + extra
     fieldsets = (
         ('Tipo', {'fields': ('tipo', 'concepto')}),
-        ('Datos', {'fields': ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'referencia', 'notas')}),
+        ('Datos', {'fields': ('cotizacion', 'fecha_pago', 'monto', 'metodo', 'cuenta_bancaria', 'referencia', 'notas')}),
         ('Comisión de terminal', {
             'fields': ('comision_tpv',),
             'description': 'Solo aplica a pagos cobrados con la terminal física (tarjeta de crédito/débito). '
