@@ -68,7 +68,7 @@ django-storages==1.14.6
     # via -r requirements.txt
 dkimpy==1.1.8
     # via -r requirements.txt
-dnspython==2.9.1
+dnspython==2.9.2
     # via dkimpy
 docstring-parser==0.18.0
     # via anthropic

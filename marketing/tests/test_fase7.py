@@ -502,6 +502,18 @@ class ResenasTest(TestCase):
                 resenas.listar_resenas()
         self.assertNotIn('refresco', str(cm.exception))
 
+    @override_settings(**GOOGLE)
+    def test_error_al_listar_incluye_el_motivo_de_google(self):
+        with patch('marketing.services.resenas.requests') as red:
+            red.post.return_value = respuesta({'access_token': 'tk'})
+            red.get.return_value = respuesta(
+                {'error': {'status': 'PERMISSION_DENIED', 'message': 'API deshabilitada'}}, status=403)
+            with self.assertRaises(resenas.GoogleError) as cm:
+                resenas.listar_resenas()
+        self.assertIn('HTTP 403', str(cm.exception))
+        self.assertIn('PERMISSION_DENIED: API deshabilitada', str(cm.exception))
+        self.assertNotIn('tk', str(cm.exception).replace('PERMISSION', ''))
+
     def test_tres_estrellas_o_menos_abren_pendiente_urgente_idempotente(self):
         datos = [reseña('malo', 'TWO'), reseña('regular', 'THREE'), reseña('bueno', 'FOUR'), reseña('top', 'FIVE')]
         r1 = resenas.sincronizar(resenas=datos)
