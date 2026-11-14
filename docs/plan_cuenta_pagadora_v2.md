@@ -52,7 +52,7 @@
 | H3 | **Alta** | Fondeos ya ocurren hoy: el estado de la cuenta actual (nov.) puede tener esos cargos clasificados como `RETIROS_DUENO` por una regla (`aplicar_reglas`) o sin clasificar. Además un abono de fondeo en la pagadora podría caer en la **capa 3** de `identificar_abonos` (solo monto) y proponerse como pago de un cliente. | PR 2: paso de traspasos **antes** de `identificar_abonos`, y comando de reclasificación del histórico. |
 | H4 | **Alta** | v1 §5 (devolución de depósito sale de la pagadora) es imposible sin modelo: `MovimientoDeposito` (`comercial/models.py:1653`) no tiene cuenta bancaria y el signal (`contabilidad/signals.py:809`) usa `BANCO_PRINCIPAL`. La migración del v1 no lo incluía. | FK también en `MovimientoDeposito`. |
 | H5 | Media | Comisiones (`COMISION_TPV` L296, `COMISION_OPENPAY` L477) van contra `BANCO_PRINCIPAL` aunque el cobro se haya registrado en otra cuenta ⇒ `comisiones_por_cobro()`/depósitos agrupados no las encontrarían (filtran por la cuenta contable del estado). | La comisión sigue la cuenta de su cobro. |
-| H6 | Media | `102.02.03` puede seguir ligada (OneToOne, PROTECT) a la `CuentaBancaria` de Revolut desactivada; `0033` solo desactivó. Si tiene movimientos aplicados, reutilizarla mezcla historia. | Verificación de solo lectura antes del alta (§6). |
+| H6 | Media | *(Resuelto: no se reutiliza, ver §9.)* `102.02.03` puede seguir ligada (OneToOne, PROTECT) a la `CuentaBancaria` de Revolut desactivada; `0033` solo desactivó. Si tiene movimientos aplicados, reutilizarla mezcla historia. | Verificación de solo lectura antes del alta (§6). |
 | H7 | Media | Conciliación de pauta (`marketing/services/conciliacion.py:60`) **ya** suma cargos de todas las cuentas (no filtra por cuenta): v1 §11 sobra. Pero con dos cuentas, si llegó el estado de una y no de la otra, `hay_movimientos` es verdadero y reporta diferencias falsas. | Exigir estado del mes de **todas** las cuentas activas. |
 | H8 | Media | Cambiar la cuenta de un `Pago`/`Compra` cuya línea de bancos ya está ligada a un `MovimientoEstadoCuenta` dejaría el renglón del banco apuntando a una línea de otra cuenta. | El servicio de reapunte rechaza si la línea está emparejada (salvo el reapunte que hace la propia conciliación). |
 | H9 | Baja | Correo: identifica por `numero_cuenta` exacto (`services_estados_correo.py:341`) y prueba contraseñas de las cuentas activas; la nueva necesita su `numero_cuenta` tal como lo imprime el estado y su contraseña capturada. `avisar_si_no_llego` (L559) exige `banco` con «bbva». | Solo alta correcta en admin; sin código. |
@@ -69,8 +69,13 @@ en el reapunte (PR 1/PR 3).
 Rama: la que indique el propietario (si no, `claude/cuenta-pagadora-fase1`). Migraciones: `contabilidad.0044`,
 `comercial.0125` (ambas aditivas).
 
-1. **`CuentaBancaria.rol`** (`contabilidad/models.py:162`): `CharField(max_length=6, choices=[('AMBOS','Cobros y pagos'),
-   ('COBRO','Cobros'),('PAGO','Pagos')], default='AMBOS', verbose_name='Uso por defecto')` con `help_text` claro de que es
+0. **Cuenta contable de egresos** (decisión del propietario): `102.02.03` **no se reutiliza** (era una cuenta personal,
+   queda desactivada para siempre). La migración `contabilidad.0044` crea con `get_or_create` la **`102.02.04` «BBVA
+   Maestra PYME Egresos»** (ACTIVO, deudora, nivel 4, padre `102.02`, activa), copiando tipo/naturaleza de `102.02.01`.
+   Si el código ya existe con otro nombre, la migración **no lo toca** y solo avisa en el log.
+
+1. **`CuentaBancaria.rol`** (`contabilidad/models.py:162`): `CharField(max_length=6, choices=[('AMBOS','Ingresos y egresos'),
+   ('COBRO','Ingresos'),('PAGO','Egresos')], default='AMBOS', verbose_name='Uso por defecto')` con `help_text` claro de que es
    preferencia. Classmethod `pagadora(unidad_id)`:
    - activas de la unidad con `cuenta_contable` no nula;
    - si hay exactamente una con `rol='PAGO'` → esa; si hay varias `PAGO` → `None`;
@@ -139,9 +144,9 @@ Rama: la que indique el propietario (si no, `claude/cuenta-pagadora-fase1`). Mig
 
 ## 5. PR 2 — Traspasos entre cuentas propias (cuenta puente)
 
-1. **Cuenta contable puente**: migración de datos aditiva que crea (si no existe) una subcuenta de activo
-   circulante «Traspasos entre cuentas propias en tránsito» (propón el código siguiendo el catálogo; p. ej. bajo 102
-   o 109 — consulta al propietario en el PR) y la `ConfiguracionContable` nueva `TRASPASOS_EN_TRANSITO` (agregar a
+1. **Cuenta contable puente** (decidido): migración de datos aditiva que crea con `get_or_create` la **`102.03`
+   «Traspasos entre cuentas propias (en tránsito)»** (ACTIVO, deudora, nivel 3, padre `102`; si el código ya existe con
+   otro nombre, no lo toca y avisa) y la `ConfiguracionContable` nueva `TRASPASOS_EN_TRANSITO` → `102.03` (agregar a
    `OPERACION_CHOICES`, `contabilidad/models.py:~820`).
 2. **Detección** `es_traspaso_propio(mov) -> CuentaBancaria | None` en `services_reglas_banco.py`: el texto normalizado
    (`normalizar_texto_banco(descripcion + referencia)`) contiene el `numero_cuenta` o la CLABE (o sus últimos 10
@@ -180,30 +185,29 @@ Rama: la que indique el propietario (si no, `claude/cuenta-pagadora-fase1`). Mig
 
 ## 7. Alta operativa (la hace el propietario, después del deploy del PR 1; no por migración)
 
-1. Verificación de solo lectura (Railway, sin escribir): ¿`102.02.03` tiene `MovimientoContable` en pólizas aplicadas?
-   ¿Está ligada a una `CuentaBancaria` (Revolut) desactivada? Si tiene movimientos → crear `102.02.04` «BBVA Maestra
-   PYME Pagos»; si no y está ligada → desligarla de la de Revolut, reactivarla y renombrarla.
-2. Admin → Bancos: nombre, banco «BBVA», CLABE, `numero_cuenta` (10 dígitos, confirmar contra el primer estado),
-   cuenta contable, unidad **QUINTA**, `saldo_inicial` 0 con fecha de apertura, rol **PAGO**, contraseña del estado.
-   Cuenta actual: rol **COBRO**. `BANCO_PRINCIPAL` sigue en la actual.
+1. Admin → Bancos, cuenta nueva: nombre **«BBVA Maestra PYME — Egresos»**, banco «BBVA», CLABE, `numero_cuenta`
+   (10 dígitos, confirmar contra el primer estado), cuenta contable **102.02.04**, unidad **QUINTA**, `saldo_inicial` 0
+   con fecha de apertura, uso **Egresos**, contraseña del estado de cuenta.
+2. Cuenta actual: renombrar a **«BBVA Maestra PYME — Ingresos»**, uso **Ingresos**. `BANCO_PRINCIPAL` sigue en ella
+   (Openpay y terminal siguen depositando ahí, confirmado).
 3. Tras el deploy del PR 2: `reclasificar_traspasos_propios --desde <fecha del primer fondeo>` (simular, revisar, aplicar).
 4. Si la cuenta nueva tuvo movimientos antes del alta, cargar su(s) estado(s) de cuenta a mano («Subir correo» o carga
    manual).
 
 ## 8. Migraciones (corren solas en el deploy al mergear)
 
-- PR 1: `contabilidad.0044` (AddField `rol`), `comercial.0125` (AddField `cuenta_bancaria` en `Pago` y
-  `MovimientoDeposito`). Aditivas, sin backfill: lo existente sigue contra `BANCO_PRINCIPAL`.
-- PR 2: migración de datos aditiva (cuenta puente + `ConfiguracionContable`), `get_or_create`, sin tocar registros
-  existentes. Ninguna borra ni reescribe datos.
+- PR 1: `contabilidad.0044` (AddField `rol` + `get_or_create` de la cuenta contable 102.02.04), `comercial.0125`
+  (AddField `cuenta_bancaria` en `Pago` y `MovimientoDeposito`). Aditivas, sin backfill: lo existente sigue contra
+  `BANCO_PRINCIPAL`.
+- PR 2: migración de datos aditiva (cuenta puente 102.03 + `ConfiguracionContable`), `get_or_create`, sin tocar
+  registros existentes. Ninguna borra ni reescribe datos.
 
-## 9. Preguntas para el propietario (no bloquean el PR 1)
+## 9. Decisiones del propietario (14/11/2026, cerradas)
 
-1. ¿`102.02.03` reactivada o `102.02.04` nueva? (decide el resultado de §7.1).
-2. Código y nombre de la cuenta puente de traspasos (confirmar con el contador).
-3. Nombres en el ERP: propuesta «BBVA Maestra PYME — Cobros» / «— Pagos».
-4. Confirmar: Openpay y terminal siguen depositando en la cuenta actual (el diseño lo asume; si cambia, solo hay que
-   apuntar `BANCO_PRINCIPAL` a la otra).
+1. `102.02.03` no se usa nunca más (era cuenta personal); la de egresos es la nueva **102.02.04**.
+2. Cuenta puente de traspasos: **102.03** (el propietario delegó la decisión).
+3. Nombres: **«BBVA Maestra PYME — Ingresos»** (actual) y **«BBVA Maestra PYME — Egresos»** (nueva).
+4. Openpay y la terminal **siguen depositando en la cuenta actual** (Ingresos = `BANCO_PRINCIPAL`).
 
 ## 10. Riesgos
 
