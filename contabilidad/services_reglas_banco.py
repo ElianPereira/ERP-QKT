@@ -142,7 +142,10 @@ def crear_poliza_desde_movimiento(movimiento, cuenta_contrapartida, usuario, *, 
 
 def _patrones_de_cuenta(cuenta):
     """Números con los que BBVA puede nombrar una cuenta propia en un concepto (mínimo 8 dígitos)."""
-    candidatos = {(cuenta.numero_cuenta or '').strip(), (cuenta.clabe or '').strip(), (cuenta.clabe or '').strip()[-10:]}
+    clabe = (cuenta.clabe or '').strip()
+    # CLABE = 3 banco + 3 plaza + 11 cuenta (con un cero inicial) + 1 verificador: la cuenta de 10 dígitos es [7:17].
+    cuenta_en_clabe = clabe[7:17] if len(clabe) == 18 else ''
+    candidatos = {(cuenta.numero_cuenta or '').strip(), clabe, cuenta_en_clabe}
     return [c for c in candidatos if c.isdigit() and len(c) >= 8]
 
 
@@ -199,6 +202,163 @@ def asentar_traspasos_propios(estado_cuenta, usuario=None):
     return asentados
 
 
+TEXTO_FONDEO = 'TRASPASO CUENTAS PROPIAS'
+ESTADOS_QUE_CUENTAN = ('PROCESADO', 'CONCILIADO')
+
+
+def _es_cargo_de_fondeo(mov):
+    """Cargo cuyo concepto es «TRASPASO CUENTAS PROPIAS» y no nombra la cuenta destino (BBVA solo imprime el
+    origen en la punta que recibe)."""
+    if not mov.cargo > 0:
+        return False
+    texto = normalizar_texto_banco(f"{mov.descripcion or ''} {mov.referencia or ''}")
+    return TEXTO_FONDEO in texto and es_traspaso_propio(mov) is None
+
+
+def _cuentas_propias_otras(cuenta_bancaria, fecha=None):
+    from .models import CuentaBancaria
+    otras = CuentaBancaria.objects.filter(activa=True, cuenta_contable__isnull=False).exclude(pk=cuenta_bancaria.pk)
+    return [c for c in otras if fecha is None or c.operaba_en(fecha.year, fecha.month)]
+
+
+def _estado_cubre(cuenta, dia):
+    """¿Hay un estado procesado de la cuenta que incluya `dia`? Del mes del día o del siguiente (un corte antes
+    de fin de mes deja los últimos días en el estado siguiente) y con corte igual o posterior."""
+    from datetime import date
+
+    from .models import EstadoCuentaBancario
+    siguiente = (dia.year + (dia.month == 12), dia.month % 12 + 1)
+    for estado in EstadoCuentaBancario.objects.filter(cuenta_bancaria=cuenta, estado__in=ESTADOS_QUE_CUENTAN):
+        if (estado.periodo_anio, estado.periodo_mes) not in ((dia.year, dia.month), siguiente):
+            continue
+        corte = estado.fecha_corte_real or date(estado.periodo_anio + (estado.periodo_mes == 12),
+                                                 estado.periodo_mes % 12 + 1, 1)
+        if corte >= dia:
+            return True
+    return False
+
+
+def parejas_de_fondeos(cuenta_bancaria):
+    """
+    {id del cargo: id del abono} de los fondeos «TRASPASO CUENTAS PROPIAS» de una cuenta. La pareja es un abono del
+    mismo importe, ±1 día, en el estado de otra cuenta propia, que `es_traspaso_propio` atribuye a esta cuenta.
+    Uno a uno, por orden de fecha e id. Se recalcula siempre de los datos (sin estado guardado), así que es estable
+    al reprocesar un PDF.
+    """
+    from datetime import timedelta
+    cargos = [m for m in MovimientoEstadoCuenta.objects.filter(
+        estado_cuenta__cuenta_bancaria=cuenta_bancaria, cargo__gt=0).select_related('estado_cuenta__cuenta_bancaria')
+        .order_by('fecha', 'id') if _es_cargo_de_fondeo(m)]
+    if not cargos:
+        return {}
+    importes = {c.cargo for c in cargos}
+    desde, hasta = min(c.fecha for c in cargos) - timedelta(days=1), max(c.fecha for c in cargos) + timedelta(days=1)
+    abonos = [a for a in MovimientoEstadoCuenta.objects.filter(
+        abono__in=importes, fecha__range=(desde, hasta), estado_cuenta__cuenta_bancaria__activa=True,
+    ).exclude(estado_cuenta__cuenta_bancaria=cuenta_bancaria).select_related('estado_cuenta__cuenta_bancaria')
+        .order_by('fecha', 'id') if (propia := es_traspaso_propio(a)) is not None and propia.pk == cuenta_bancaria.pk]
+    usados, parejas = set(), {}
+    for cargo in cargos:
+        for abono in abonos:
+            if abono.pk not in usados and abono.abono == cargo.cargo and abs((abono.fecha - cargo.fecha).days) <= 1:
+                usados.add(abono.pk)
+                parejas[cargo.pk] = abono.pk
+                break
+    return parejas
+
+
+def _clasificar_fondeos(estado_cuenta):
+    """Cargos de fondeo sin asiento de un estado: (con_pareja, en_espera, libres). Los libres (sin pareja y con las
+    otras cuentas ya procesadas, o sin otra cuenta propia) siguen a `aplicar_reglas` como siempre."""
+    from datetime import timedelta
+
+    from .services_abonos import ids_movimientos_en_bitacora
+    cuenta = estado_cuenta.cuenta_bancaria
+    sin_asiento = (estado_cuenta.movimientos.filter(movimiento_contable__isnull=True, cargo__gt=0)
+                   .exclude(pk__in=ids_movimientos_en_bitacora()).order_by('fecha', 'id'))
+    candidatos = [m for m in sin_asiento if _es_cargo_de_fondeo(m) and not _poliza_del_movimiento(m)]
+    if not candidatos:
+        return [], [], []
+    parejas = parejas_de_fondeos(cuenta)
+    con_pareja, en_espera, libres = [], [], []
+    for mov in candidatos:
+        if mov.pk in parejas:
+            con_pareja.append(mov)
+        elif any(not (_estado_cubre(o, mov.fecha - timedelta(days=1)) and _estado_cubre(o, mov.fecha + timedelta(days=1)))
+                 for o in _cuentas_propias_otras(cuenta, mov.fecha)):
+            en_espera.append(mov)
+        else:
+            libres.append(mov)
+    return con_pareja, en_espera, libres
+
+
+def asentar_fondeos(estado_cuenta, usuario=None):
+    """
+    Cargos «TRASPASO CUENTAS PROPIAS» (el abono de la otra cuenta es el que nombra el origen): con pareja van a la
+    puente. Sin pareja y con la otra cuenta aún sin estado procesado esperan sin asiento y sin pendiente (si el
+    estado no llega, ya avisa `avisar_si_no_llego`); sin pareja y con ambos estados procesados fue a una cuenta
+    personal y sigue a `aplicar_reglas`. Devuelve {'asentados': n, 'en_espera': n}.
+    """
+    puente = ConfiguracionContable.obtener_cuenta('TRASPASOS_EN_TRANSITO')
+    if puente is None or not estado_cuenta.cuenta_bancaria.cuenta_contable_id:
+        return {'asentados': 0, 'en_espera': 0}
+    usuario = usuario or usuario_sistema()
+    con_pareja, en_espera, _ = _clasificar_fondeos(estado_cuenta)
+    asentados = 0
+    for mov in con_pareja:
+        try:
+            crear_poliza_desde_movimiento(mov, puente, usuario, aplicar=True, concepto='Traspaso entre cuentas propias')
+        except Exception as e:  # un movimiento roto no debe frenar a los demás
+            logger.warning("No se pudo asentar el fondeo %s: %s", mov.pk, e)
+            continue
+        asentados += 1
+    return {'asentados': asentados, 'en_espera': len(en_espera)}
+
+
+def autocorregir_fondeos(estado_cuenta):
+    """
+    Un cargo de fondeo ya APLICADO como retiro del dueño cuya pareja apareció después (el abono cayó en el estado
+    del mes siguiente) se reapunta a la puente, con los candados de `reclasificar_traspasos`. Idempotente.
+    Devuelve cuántos corrigió.
+    """
+    from .services_traspasos import reapuntar_a_puente
+    puente = ConfiguracionContable.obtener_cuenta('TRASPASOS_EN_TRANSITO')
+    retiros = ConfiguracionContable.obtener_cuenta('RETIROS_DUENO')
+    if puente is None or retiros is None:
+        return 0
+    cuenta = estado_cuenta.cuenta_bancaria
+    aplicados = [m for m in estado_cuenta.movimientos.filter(movimiento_contable__isnull=False, cargo__gt=0)
+                 .select_related('estado_cuenta__cuenta_bancaria') if _es_cargo_de_fondeo(m)]
+    if not aplicados:
+        return 0
+    parejas = parejas_de_fondeos(cuenta)
+    corregidos = 0
+    for mov in aplicados:
+        if mov.pk in parejas and reapuntar_a_puente(mov, puente, {retiros.pk}, True):
+            corregidos += 1
+    return corregidos
+
+
+def reintentar_fondeos_cruzados(estado_cuenta, usuario=None):
+    """
+    Al terminar un estado, los fondeos de las otras cuentas propias (estados del mismo mes y del anterior) pueden
+    haber encontrado su pareja o dejado de esperar: se asientan, se autocorrigen y lo liberado pasa a las reglas.
+    """
+    from .models import EstadoCuentaBancario
+    usuario = usuario or usuario_sistema()
+    mes, anio = estado_cuenta.periodo_mes, estado_cuenta.periodo_anio
+    anterior = (anio - (mes == 1), 12 if mes == 1 else mes - 1)
+    estados = [e for e in EstadoCuentaBancario.objects.filter(
+        estado__in=ESTADOS_QUE_CUENTAN, cuenta_bancaria__activa=True).exclude(cuenta_bancaria=estado_cuenta.cuenta_bancaria)
+        if (e.periodo_anio, e.periodo_mes) in ((anio, mes), anterior)]
+    for otro in estados:
+        asentar_fondeos(otro, usuario)
+        autocorregir_fondeos(otro)
+        libres = {m.pk for m in _clasificar_fondeos(otro)[2]}
+        if libres:  # ya no esperan y no eran fondeos: siguen la regla de siempre (retiro del dueño)
+            aplicar_reglas(otro, usuario=usuario, solo_ids=libres)
+
+
 def vincular_polizas_propias(estado_cuenta):
     """Empareja los movimientos cuya póliza BANCO quedó en borrador y alguien
     aplicó después. Devuelve cuántos vinculó."""
@@ -234,7 +394,7 @@ def _pendiente_sin_saldo_caja(movimiento):
     )
 
 
-def aplicar_reglas(estado_cuenta, usuario=None):
+def aplicar_reglas(estado_cuenta, usuario=None, solo_ids=None):
     """
     Crea la póliza de cada movimiento sin asiento que calce con una regla.
     Devuelve un resumen con listas de MovimientoEstadoCuenta: 'aplicadas',
@@ -252,9 +412,11 @@ def aplicar_reglas(estado_cuenta, usuario=None):
     cuenta_caja = ConfiguracionContable.obtener_cuenta('CAJA')
 
     # Un abono propuesto a Dirección o ya registrado como pago de un cliente no es de una regla.
-    en_bitacora = ids_movimientos_en_bitacora()
+    en_bitacora = ids_movimientos_en_bitacora() | {m.pk for m in _clasificar_fondeos(estado_cuenta)[1]}
     pendientes = (estado_cuenta.movimientos.filter(movimiento_contable__isnull=True)
                   .exclude(pk__in=en_bitacora).order_by('fecha', 'id'))
+    if solo_ids is not None:
+        pendientes = pendientes.filter(pk__in=solo_ids)
     for mov in pendientes:
         existente = _poliza_del_movimiento(mov)
         if existente and existente.estado == 'BORRADOR':
@@ -305,6 +467,7 @@ def sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario):
     Solo con exactamente una Compra candidata: con varias no se adivina.
     Traspasos, inversiones o nómina nunca se tocan. Devuelve los liberados.
     """
+    from .services_compras import ReapunteRechazado, reapuntar_banco_de_compra
     from .services_estados_cuenta import compras_candidatas
 
     cuenta_bancaria = estado_cuenta.cuenta_bancaria
@@ -330,6 +493,13 @@ def sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario):
             continue
         compra = candidatas[0]
         with transaction.atomic():
+            if compra.cuenta_pago_id and compra.cuenta_pago_id != cuenta_bancaria.pk:
+                # Pagada desde la otra cuenta propia: el estado manda, pero si el reapunte se rechaza
+                # (línea ligada, periodo cerrado) la provisional se queda como está.
+                try:
+                    reapuntar_banco_de_compra(compra, cuenta_bancaria, desde_conciliacion=True)
+                except ReapunteRechazado:
+                    continue
             poliza.cancelar(usuario, f"Sustituida por el CFDI de la Compra #{compra.pk} ({compra.uuid or 'sin UUID'})")
             mov.movimiento_contable = None
             mov.match_automatico = False

@@ -23,6 +23,11 @@ from .models import (
 )
 from .services_compras import ReapunteRechazado, reapuntar_banco_de_compra
 from .services_estados_cuenta import analizar_conciliacion, emparejar_y_asentar
+from .services_reglas_banco import (
+    crear_poliza_desde_movimiento,
+    sustituir_asientos_provisionales_por_cfdi,
+    usuario_sistema,
+)
 from .tests import _crear_cotizacion
 
 
@@ -242,6 +247,42 @@ class ConciliacionReapuntaTest(PagadoraBase):
 
     def test_reapuntar_a_la_misma_cuenta_no_hace_nada(self):
         self.assertFalse(reapuntar_banco_de_compra(self.compra, self.pagadora))
+
+
+class SustitucionProvisionalConReapunteTest(PagadoraBase):
+    """El reapunte va antes de cancelar la póliza provisional: si se rechaza, la provisional se queda."""
+
+    def setUp(self):
+        super().setUp()
+        self.pagadora = self._pagadora()
+        self.compra = self._compra()  # asignada a la pagadora
+        self.estado = self._estado(self.cobro)
+        self.cargo = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=self.estado, fecha=date(2026, 11, 6), descripcion='PAGO HIELERA', cargo=Decimal('116.00'))
+        gasto = CuentaContable.objects.filter(tipo='GASTO', nivel__gte=3).first()
+        self.provisional = crear_poliza_desde_movimiento(self.cargo, gasto, usuario_sistema(), aplicar=True)
+
+    def test_con_reapunte_posible_cancela_la_provisional_y_la_compra_pasa_a_la_cuenta_del_estado(self):
+        liberados = sustituir_asientos_provisionales_por_cfdi(self.estado, usuario_sistema())
+        self.assertEqual(liberados, [self.cargo])
+        self.provisional.refresh_from_db()
+        self.compra.refresh_from_db()
+        self.assertEqual((self.provisional.estado, self.compra.cuenta_pago), ('CANCELADA', self.cobro))
+
+    def test_si_el_reapunte_se_rechaza_la_provisional_no_se_cancela(self):
+        from django.contrib.auth import get_user_model
+        SaldoApertura.objects.create(  # periodo cerrado de la pagadora: el reapunte es imposible
+            cuenta_bancaria=self.pagadora, fecha_corte=date(2026, 12, 31), saldo_certificado=Decimal('0.00'),
+            certificado_por=get_user_model().objects.create_user('contador_ficticio', password='x'),  # noqa: S106
+            aplicado=True)
+        for _ in range(2):  # y no se vuelve a intentar con otro efecto en cada corrida
+            self.assertEqual(sustituir_asientos_provisionales_por_cfdi(self.estado, usuario_sistema()), [])
+        self.provisional.refresh_from_db()
+        self.cargo.refresh_from_db()
+        self.compra.refresh_from_db()
+        self.assertEqual(self.provisional.estado, 'APLICADA')
+        self.assertIsNotNone(self.cargo.movimiento_contable_id)
+        self.assertEqual(self.compra.cuenta_pago, self.pagadora)
 
 
 class ConfiguracionBancoPrincipalTest(PagadoraBase):

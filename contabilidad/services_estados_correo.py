@@ -558,6 +558,8 @@ def avisar_si_no_llego(hoy=None):
     avisos = 0
     cuentas = CuentaBancaria.objects.filter(activa=True, banco__icontains='bbva').exclude(numero_cuenta='')
     for cuenta in cuentas:
+        if not cuenta.operaba_en(anio, mes):
+            continue  # alta posterior al mes: no tenía estado que esperar
         if EstadoCuentaBancario.objects.filter(cuenta_bancaria=cuenta, periodo_mes=mes, periodo_anio=anio).exists():
             continue
         pendiente = registrar_pendiente(
