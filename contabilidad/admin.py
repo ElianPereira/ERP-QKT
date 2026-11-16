@@ -47,6 +47,7 @@ from .services_estados_cuenta import (
     emparejar_y_asentar,
     generar_conciliacion_preliminar,
     procesar_estado_cuenta,
+    saldo_traspasos_en_transito,
 )
 from .services_sat import ConfiguracionSATError
 
@@ -1187,6 +1188,7 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
                 f"{len(resumen['sin_regla'])} sin regla.",
                 level=messages.SUCCESS,
             )
+            self._avisar_traspasos_en_transito(request, ec)
             if resumen['sin_cuenta']:
                 self.message_user(
                     request,
@@ -1195,11 +1197,23 @@ class EstadoCuentaBancarioAdmin(admin.ModelAdmin):
                     level=messages.WARNING,
                 )
 
+    def _avisar_traspasos_en_transito(self, request, ec):
+        """Saldo distinto de cero en la cuenta puente = traspaso con una sola punta asentada."""
+        saldo = saldo_traspasos_en_transito(ec.fecha_corte_real)
+        if saldo:
+            self.message_user(
+                request,
+                f"{ec}: traspasos entre cuentas propias en tránsito por ${saldo:,.2f}. Una punta está asentada y "
+                "falta cargar el estado de cuenta de la otra cuenta.",
+                level=messages.WARNING,
+            )
+
     def generar_conciliacion(self, request, queryset):
         ok, errores = 0, []
         for ec in queryset.filter(estado='PROCESADO'):
             try:
                 generar_conciliacion_preliminar(ec, usuario=request.user)
+                self._avisar_traspasos_en_transito(request, ec)
                 ok += 1
             except Exception as e:
                 errores.append(f"{ec}: {e}")

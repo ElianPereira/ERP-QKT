@@ -133,6 +133,7 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     3. CFDI cargado (carga masiva de XML) que calza con el cargo: ya marcado
        pagado desde esta cuenta (se liga su línea de bancos) o sin cuenta de
        pago (se completa y aplica su póliza).
+    3b. Traspasos entre cuentas propias: cada punta contra la cuenta puente (`asentar_traspasos_propios`).
     4. Abonos de clientes que transfirieron directo: el folio COT-NNN en el concepto
        crea el Pago; nombre o monto solo se proponen a Dirección (`services_abonos`).
     5. Reglas por texto del concepto o cuenta del tercero.
@@ -141,6 +142,7 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     from .services_abonos import identificar_abonos
     from .services_reglas_banco import (
         aplicar_reglas,
+        asentar_traspasos_propios,
         emparejar_compras_ya_pagadas,
         sustituir_asientos_provisionales_por_cfdi,
         usuario_sistema,
@@ -150,6 +152,7 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     usuario = usuario or usuario_sistema()
     vincular_polizas_propias(estado_cuenta)
     _emparejar_automaticamente(estado_cuenta)
+    asentar_traspasos_propios(estado_cuenta, usuario)  # antes de los abonos: un fondeo no es pago de cliente
     identificar_abonos(estado_cuenta)
     sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario)
     emparejar_compras_ya_pagadas(estado_cuenta)
@@ -901,6 +904,22 @@ def _en_transito_al_inicio(estado_cuenta, fecha_inicio):
     return (totales['debe'] or Decimal('0.00')) - (totales['haber'] or Decimal('0.00'))
 
 
+def saldo_traspasos_en_transito(fecha=None):
+    """Saldo (según libros, pólizas aplicadas) de la cuenta puente de traspasos entre cuentas propias.
+    Distinto de cero = un traspaso con solo una punta asentada (falta el estado de la otra cuenta)."""
+    from .models import ConfiguracionContable
+
+    puente = ConfiguracionContable.obtener_cuenta('TRASPASOS_EN_TRANSITO')
+    if puente is None:
+        return Decimal('0.00')
+    filtro = {'poliza__estado': 'APLICADA'}
+    if fecha:
+        filtro['poliza__fecha__lte'] = fecha
+    t = puente.movimientos.filter(**filtro).aggregate(d=Sum('debe'), h=Sum('haber'))
+    neto = (t['d'] or Decimal('0.00')) - (t['h'] or Decimal('0.00'))
+    return neto if puente.naturaleza == 'D' else -neto
+
+
 def analizar_conciliacion(estado_cuenta: EstadoCuentaBancario):
     """
     Calcula todas las cifras de la conciliación de un estado de cuenta, sin
@@ -977,6 +996,7 @@ def analizar_conciliacion(estado_cuenta: EstadoCuentaBancario):
         'abonos_empresa_no_abonados': abonos_empresa_no_abonados,
         'detalle_banco_sin_asiento': banco_sin_asiento,
         'detalle_libros_sin_banco': libros_sin_banco,
+        'traspasos_en_transito': saldo_traspasos_en_transito(estado_cuenta.fecha_corte_real),
     }
 
 
