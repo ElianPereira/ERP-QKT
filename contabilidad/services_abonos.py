@@ -41,7 +41,6 @@ from comunicacion.services import normalizar_telefono_wa
 
 from .models import (
     AbonoIdentificado,
-    ConfiguracionContable,
     Poliza,
     ReglaConciliacion,
     normalizar_texto_banco,
@@ -192,11 +191,11 @@ def _movimiento_de(bit):
 
 
 def _cuenta_inconsistente(cuenta_bancaria) -> str:
-    """El `Pago` por transferencia asienta contra BANCO_PRINCIPAL. Si la cuenta que recibió el
-    abono es otra, el asiento quedaría en una cuenta contable ajena y el renglón sin ligar."""
-    principal = ConfiguracionContable.obtener_cuenta('BANCO_PRINCIPAL')
-    if principal is None or cuenta_bancaria.cuenta_contable_id != principal.pk:
-        return ('La cuenta bancaria del estado no es la configurada como Banco principal en contabilidad: '
+    """El `Pago` se asienta contra la cuenta contable de la cuenta que recibió el abono (cualquier
+    cuenta propia sirve: el rol es solo una preferencia). Solo se rechaza una cuenta que no puede
+    asentar: inactiva o sin cuenta contable de bancos."""
+    if not cuenta_bancaria.activa or not cuenta_bancaria.cuenta_contable_id:
+        return ('La cuenta bancaria del estado está inactiva o no tiene cuenta contable de bancos: '
                 'no se registra el pago hasta corregirlo.')
     return ''
 
@@ -209,7 +208,8 @@ def _crear_pago(bit, cot, nota) -> Optional[Pago]:
     mov = _movimiento_de(bit)
     pago = Pago(
         cotizacion=cot, tipo='INGRESO', concepto='VENTA', metodo=METODO, monto=bit.importe,
-        fecha_pago=bit.fecha, referencia=f'BANCO-{bit.huella[:12]}', notas=nota[:255])
+        fecha_pago=bit.fecha, referencia=f'BANCO-{bit.huella[:12]}', notas=nota[:255],
+        cuenta_bancaria=cuenta_bancaria)
     pago.full_clean()
     pago.save()
     linea = _linea_de_banco(pago, cuenta_bancaria.cuenta_contable)

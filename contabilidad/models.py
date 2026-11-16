@@ -206,6 +206,12 @@ class CuentaBancaria(models.Model):
         verbose_name="Fecha del saldo inicial"
     )
     activa = models.BooleanField(default=True)
+    ROLES = [('AMBOS', 'Ingresos y egresos'), ('COBRO', 'Ingresos'), ('PAGO', 'Egresos')]
+    rol = models.CharField(
+        max_length=5, choices=ROLES, default='AMBOS', verbose_name="Uso por defecto",
+        help_text="Es una preferencia, no una restricción: cualquier cuenta puede recibir o pagar. "
+                  "Solo decide a qué cuenta se asignan por defecto los pagos nuevos; el estado de "
+                  "cuenta del banco manda y corrige la cuenta si fue otra.")
     password_estado_cifrada = models.BinaryField(
         null=True, blank=True, editable=False, verbose_name="Contraseña del estado de cuenta",
         help_text="Cifrada con Fernet (la llave de la e.firma). Solo se escribe desde el admin, por un "
@@ -222,6 +228,22 @@ class CuentaBancaria(models.Model):
 
     def __str__(self):
         return f"{self.banco} - {self.nombre}"
+
+    @classmethod
+    def pagadora(cls, unidad_id):
+        """Cuenta desde la que se paga por defecto en una unidad: la única activa con rol PAGO;
+        si no hay ninguna PAGO, la única activa (una sola cuenta = comportamiento de siempre);
+        con ambigüedad, None (nunca se adivina). Se cuentan todas las activas, aunque alguna no
+        tenga cuenta contable; solo la elegida debe poder asentar."""
+        if not unidad_id:
+            return None
+        activas = list(cls.objects.filter(unidad_negocio_id=unidad_id, activa=True))
+        pago = [c for c in activas if c.rol == 'PAGO']
+        if pago:
+            elegida = pago[0] if len(pago) == 1 else None
+        else:
+            elegida = activas[0] if len(activas) == 1 else None
+        return elegida if elegida and elegida.cuenta_contable_id else None
 
     @property
     def saldo_actual(self):
@@ -860,6 +882,20 @@ class ConfiguracionContable(models.Model):
 
     def __str__(self):
         return f"{self.get_operacion_display()} → {self.cuenta.codigo_sat}"
+
+    def clean(self):
+        """BANCO_PRINCIPAL es la cuenta de cobro por defecto (Pago sin cuenta, Openpay, terminal):
+        debe ser la cuenta contable de una cuenta bancaria activa, y no una marcada solo para egresos."""
+        super().clean()
+        if self.operacion != 'BANCO_PRINCIPAL' or not self.activa or not self.cuenta_id:
+            return
+        banco = CuentaBancaria.objects.filter(cuenta_contable_id=self.cuenta_id, activa=True).first()
+        if banco is None:
+            raise ValidationError({'cuenta': 'El Banco principal debe ser la cuenta contable de una cuenta '
+                                             'bancaria activa (Bancos).'})
+        if banco.rol == 'PAGO':
+            raise ValidationError({'cuenta': f'«{banco}» está marcada solo para egresos: el Banco principal '
+                                             'recibe los cobros (Openpay, terminal, clientes).'})
 
     @classmethod
     def obtener_cuenta(cls, operacion):

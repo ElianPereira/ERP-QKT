@@ -43,10 +43,12 @@ repo por tu cuenta — la mayoría de las preguntas de "¿cómo corro X?" o
 - **Dominios**: `erp.quintakooxtanil.com` (ERP interno, Railway),
   portal cliente y cotizador en `quintakooxtanil.com/mi-evento/` y `/cotizar/` (Railway; `clientes.` ya no existe en DNS),
   `quintakooxtanil.com` (landing pública, Cloudflare Pages).
-- **Cuenta bancaria**: una sola, BBVA Maestra PYME → QUINTA, para cobros y
-  para gastos con y sin factura. Revolut como cuenta pagadora se probó y se
-  retiró el mismo día (ver Memoria 2026-09-29). La BBVA Libretón Básico
-  (antes AIRBNB) ya salió del ERP (Issue #311).
+- **Cuentas bancarias**: dos BBVA Maestra PYME → QUINTA. **«Ingresos»** (la de siempre, `BANCO_PRINCIPAL`, cuenta
+  contable 102.02.01) recibe cobros: clientes, Openpay y terminal. **«Egresos»** (terminación 7930, cuenta contable
+  102.02.04) paga pauta, suscripciones, proveedores y reembolsos; se fondea con transferencias propias desde la
+  primera. `CuentaBancaria.rol` es solo una preferencia (cualquiera puede recibir o pagar) y el estado de cuenta
+  manda (Memoria 2026-11-14). Revolut se probó y se retiró (Memoria 2026-09-29). La BBVA Libretón Básico (antes
+  AIRBNB) ya salió del ERP (Issue #311).
 
 ## Estándares de código (obligatorio, sin excepción)
 
@@ -276,6 +278,25 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+
+- 2026-11-14 — **Segunda cuenta BBVA (pagadora), PR 1 de 3** (Issue #499, `docs/plan_cuenta_pagadora_v2.md`; **mueve dinero y
+  contabilidad**: va a revisión del propietario, sin zonas restringidas; migraciones aditivas `contabilidad.0044` y `comercial.0125`).
+  `CuentaBancaria.rol` (AMBOS/COBRO/PAGO, solo preferencia) y `CuentaBancaria.pagadora(unidad)` (la única PAGO; sin PAGO, la única
+  activa; con ambigüedad, `None`). `Pago` y `MovimientoDeposito` ganan `cuenta_bancaria` (vacío = `BANCO_PRINCIPAL`, como hoy;
+  EFECTIVO/CONDONACION con cuenta = error); solo al crear, un reembolso o devolución por transferencia toma la pagadora, los cobros no
+  asignan nada (así Openpay, que crea `Pago` sin la FK, queda igual). Un resolver único `signals.cuenta_banco_de()` reemplaza los
+  `BANCO_PRINCIPAL` fijos (pago, ingreso extra, reembolso, depósito) y las comisiones TPV/Openpay siguen la cuenta de su cobro.
+  `Compra.save()` usa `pagadora()`. **El estado de cuenta manda**: `compras_candidatas` acepta compras pagadas desde otra cuenta propia
+  de la unidad y `emparejar_compras_ya_pagadas` llama a `services_compras.reapuntar_banco_de_compra` (no cancela ni toca importes;
+  rechaza si la línea ya está ligada a un renglón o si la póliza cae en un periodo cerrado con `SaldoApertura` aplicado), así que una
+  compra asignada a la pagadora que se pagó con la cuenta de cobro mientras no llega la tarjeta se corrige sola al conciliar.
+  `services_abonos._cuenta_inconsistente` acepta cualquier cuenta activa con cuenta contable y el `Pago` por folio lleva la cuenta
+  que recibió el abono. `ConfiguracionContable.clean()` exige que `BANCO_PRINCIPAL` sea la cuenta de un banco activo y no solo de
+  egresos; el admin de Bancos avisa si se marca así. La migración crea con `get_or_create` la **102.02.04** (la 102.02.03, cuenta
+  personal de Revolut, no se reutiliza). **No incluye** (PR 2 y 3): traspasos entre cuentas propias (cuenta puente 102.03), cambio
+  manual de cuenta y estado de cuenta del mes de todas las cuentas en la conciliación de pauta. **Pendiente del propietario tras el
+  deploy**: dar de alta la cuenta nueva en Bancos (cuenta contable 102.02.04, uso Egresos, contraseña del estado) y marcar la actual
+  como Ingresos; hasta entonces todo sigue con una sola cuenta.
 
 - 2026-11-13 — **Conciliación de pauta de Meta: IVA 0 % y cobros con otras tarjetas** (sin zonas restringidas, sin migración). El informe
   de facturación de Meta Platforms Ireland (jul–nov 2026) trae «VAT Rate: 0%»: la conciliación comparaba el gasto × 1.16 y daba

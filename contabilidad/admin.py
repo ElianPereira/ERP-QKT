@@ -129,9 +129,16 @@ class CuentaBancariaForm(forms.ModelForm):
 @admin.register(CuentaBancaria)
 class CuentaBancariaAdmin(admin.ModelAdmin):
     form = CuentaBancariaForm
-    list_display = ['nombre', 'banco', 'clabe_display', 'cuenta_contable', 'saldo_display', 'activa']
-    list_filter = ['banco', 'activa']
+    list_display = ['nombre', 'banco', 'clabe_display', 'cuenta_contable', 'rol', 'saldo_display', 'activa']
+    list_filter = ['banco', 'activa', 'rol']
     search_fields = ['nombre', 'banco', 'clabe']
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        principal = ConfiguracionContable.obtener_cuenta('BANCO_PRINCIPAL')
+        if obj.rol == 'PAGO' and principal is not None and obj.cuenta_contable_id == principal.pk:
+            messages.warning(request, "Esta cuenta es el Banco principal (cobros de Openpay, terminal y clientes) "
+                                      "pero quedó marcada solo para egresos: revisa la configuración contable.")
 
     def get_form(self, request, obj=None, **kwargs):
         # Solo Dirección captura la contraseña; para el resto el campo no existe.

@@ -10,7 +10,7 @@ importes, IVA, banco y folio no cambian, así que la póliza sigue cuadrada.
 from django.contrib.contenttypes.models import ContentType
 from django.db import transaction
 
-from .models import CuentaContable, MovimientoContable, Poliza
+from .models import CuentaContable, MovimientoContable, Poliza, SaldoApertura
 from .signals import cuenta_gasto_de_compra, get_cuenta
 
 
@@ -131,3 +131,44 @@ def reclasificar_historico(desde=None, aplicar=False):
             if aplicar:
                 MovimientoContable.objects.filter(pk=mov.pk).update(cuenta=nueva)
     return resultado
+
+
+class ReapunteRechazado(Exception):
+    """El cambio de cuenta bancaria de una Compra no es seguro (línea conciliada o periodo cerrado)."""
+
+
+def reapuntar_banco_de_compra(compra, nueva_cuenta, *, desde_conciliacion=False):
+    """
+    Cambia la cuenta bancaria desde la que se pagó una Compra: reapunta la línea de bancos de su póliza
+    APLICADA a la cuenta contable de `nueva_cuenta` y actualiza `compra.cuenta_pago`. No cancela ni toca
+    importes, IVA, folio o gasto. Rechaza (ReapunteRechazado) si la línea ya está emparejada con un renglón
+    de estado de cuenta (`desde_conciliacion` solo se usa cuando el propio emparejamiento va a ligarla) o si
+    la póliza cae en un periodo cerrado con `cerrar_historico_contable`. Devuelve True si hubo cambio.
+    """
+    if not nueva_cuenta or not nueva_cuenta.cuenta_contable_id:
+        raise ReapunteRechazado("La cuenta destino no tiene cuenta contable de bancos.")
+    with transaction.atomic():
+        if compra.cuenta_pago_id == nueva_cuenta.pk:
+            return False
+        actual = compra.cuenta_pago
+        if actual is None or not actual.cuenta_contable_id:
+            raise ReapunteRechazado("La compra no tiene una cuenta de pago ligada a bancos.")
+        polizas = list(_polizas_de_compra(compra).filter(estado='APLICADA').select_for_update())
+        lineas = list(MovimientoContable.objects.filter(
+            poliza__in=polizas, cuenta_id=actual.cuenta_contable_id, haber__gt=0))
+        for poliza in polizas:
+            corte = SaldoApertura.objects.filter(
+                cuenta_bancaria__in=[actual, nueva_cuenta], aplicado=True,
+                fecha_corte__gte=poliza.fecha).exists()
+            if corte:
+                raise ReapunteRechazado(f"La póliza {poliza.folio} es de un periodo ya cerrado.")
+        for linea in lineas:
+            if not desde_conciliacion and linea.movimientos_banco_emparejados.exists():
+                raise ReapunteRechazado("La línea de bancos ya está ligada a un renglón del estado de cuenta: "
+                                        "desliga primero en el estado de cuenta.")
+        for linea in lineas:
+            linea.cuenta_id = nueva_cuenta.cuenta_contable_id
+            linea.save(update_fields=['cuenta'])
+        compra.cuenta_pago = nueva_cuenta
+        compra.save(update_fields=['cuenta_pago'])
+        return True

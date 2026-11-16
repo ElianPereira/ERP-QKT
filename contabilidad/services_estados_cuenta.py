@@ -717,7 +717,10 @@ def compras_candidatas(mov_banco, unidad, tolerancia_dias=5, cuenta_bancaria=Non
     if cuenta_bancaria is None:
         base = base.filter(cuenta_pago__isnull=True)
     else:
-        base = base.filter(Q(cuenta_pago__isnull=True) | Q(cuenta_pago=cuenta_bancaria))
+        # El estado de cuenta manda: también cuentan las pagadas "desde otra cuenta propia" de la
+        # unidad (default de Compra.save()); si se liga, la línea de bancos se reapunta a esta cuenta.
+        base = base.filter(Q(cuenta_pago__isnull=True) | Q(cuenta_pago=cuenta_bancaria)
+                           | Q(cuenta_pago__unidad_negocio=unidad, cuenta_pago__activa=True))
 
     rfc = RFC_EN_CONCEPTO_RE.search((mov_banco.descripcion or '').upper())
     if rfc:
@@ -730,7 +733,7 @@ def compras_candidatas(mov_banco, unidad, tolerancia_dias=5, cuenta_bancaria=Non
     resultado = []
     for compra in candidatas:
         if compra.cuenta_pago_id:
-            linea = linea_banco_de_compra(compra, cuenta_bancaria)
+            linea = linea_banco_de_compra(compra, compra.cuenta_pago)
             if not linea or linea.movimientos_banco_emparejados.exists():
                 continue
         resultado.append(compra)

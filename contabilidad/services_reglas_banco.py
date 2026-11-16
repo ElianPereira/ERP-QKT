@@ -294,6 +294,7 @@ def emparejar_compras_ya_pagadas(estado_cuenta):
     la póliza (fechada con la emisión del CFDI); esto agrega la factura pagada
     semanas después cuando BBVA imprime el RFC del comercio. Devuelve cuántos.
     """
+    from .services_compras import ReapunteRechazado, reapuntar_banco_de_compra
     from .services_estados_cuenta import compras_candidatas, linea_banco_de_compra
 
     cuenta_bancaria = estado_cuenta.cuenta_bancaria
@@ -305,7 +306,14 @@ def emparejar_compras_ya_pagadas(estado_cuenta):
         pagadas = [c for c in compras_candidatas(mov, unidad, cuenta_bancaria=cuenta_bancaria) if c.cuenta_pago_id]
         if len(pagadas) != 1:
             continue
-        linea = linea_banco_de_compra(pagadas[0], cuenta_bancaria)
+        compra = pagadas[0]
+        if compra.cuenta_pago_id != cuenta_bancaria.pk:
+            # El cargo apareció en el estado de esta cuenta: ahí salió el dinero (el estado manda).
+            try:
+                reapuntar_banco_de_compra(compra, cuenta_bancaria, desde_conciliacion=True)
+            except ReapunteRechazado:
+                continue
+        linea = linea_banco_de_compra(compra, cuenta_bancaria)
         if linea and _vincular_linea(mov, linea):
             emparejados += 1
     return emparejados

@@ -133,10 +133,8 @@ class IdentificacionPorFolioTest(AbonosBase):
         self.assertEqual((bit.estado, bit.capa, bit.cotizacion), ('PROPUESTO', 'MONTO', self.cot))
         self.assertFalse(Pago.objects.exists())
 
-    def test_cuenta_que_no_es_banco_principal_no_crea_pago(self):
-        otra = CuentaContable.objects.create(
-            codigo_sat='102.02.99', nombre='Otro banco', tipo='ACTIVO', naturaleza='D', nivel=4)
-        CuentaBancaria.objects.filter(pk=self.cuenta_bancaria.pk).update(cuenta_contable=otra)
+    def test_cuenta_sin_cuenta_contable_no_crea_pago(self):
+        CuentaBancaria.objects.filter(pk=self.cuenta_bancaria.pk).update(cuenta_contable=None)
         self.estado = EstadoCuentaBancario.objects.get(pk=self.estado.pk)
         self._mov(SPEI.format(self.folio), abono='5000.00')
         identificar_abonos(self.estado)
@@ -295,11 +293,9 @@ class BotonDeDireccionTest(AbonosBase):
         aviso = Pendiente.objects.get(clave_idempotencia=f'abono_descartado:{bit.huella}')
         self.assertEqual(aviso.rol, 'ENCARGADO')
 
-    def test_confirmar_con_la_cuenta_mal_configurada_no_registra(self):
+    def test_confirmar_con_la_cuenta_inactiva_no_registra(self):
         bit, token = self._proponer()
-        ConfiguracionContable.objects.filter(operacion='BANCO_PRINCIPAL').update(
-            cuenta=CuentaContable.objects.create(
-                codigo_sat='102.02.98', nombre='Otro', tipo='ACTIVO', naturaleza='D', nivel=4))
+        CuentaBancaria.objects.filter(pk=self.cuenta_bancaria.pk).update(activa=False)
         resultado = atender_boton(TEL_DIRECCION, f'abo:{token}:ok')
         self.assertIsNone(resultado.pago)
         self.assertFalse(Pago.objects.exists())
@@ -355,3 +351,26 @@ class InstruccionAlClienteTest(AbonosBase):
         portal = PortalCliente.objects.get(cotizacion=self.cot)
         html = self.client.get(reverse('portal_evento', args=[portal.token]), secure=True).content.decode()
         self.assertNotIn('card-transferencia-bancaria', html)
+
+
+class AbonoEnCuentaPagadoraTest(AbonosBase):
+    def test_abono_con_folio_en_la_otra_cuenta_crea_pago_ligado_a_ella(self):
+        pagadora = CuentaBancaria.objects.create(
+            nombre='BBVA Egresos', banco='BBVA', clabe='012345678901234888', rol='PAGO',
+            cuenta_contable=CuentaContable.objects.get(codigo_sat='102.02.04'),
+            unidad_negocio=UnidadNegocio.objects.get(clave='QUINTA'))
+        estado = EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=pagadora, banco='BBVA', periodo_mes=11, periodo_anio=2026, formato='PDF',
+            estado='PROCESADO', fecha_corte_real=date(2026, 11, 30), saldo_inicial_estado=Decimal('0.00'),
+            saldo_final_estado=Decimal('0.00'))
+        mov = MovimientoEstadoCuenta.objects.create(
+            estado_cuenta=estado, fecha=date(2026, 11, 3), descripcion=SPEI.format(self.folio),
+            abono=Decimal('5000.00'))
+        emparejar_y_asentar(estado)
+        emparejar_y_asentar(estado)  # reproceso: la huella evita el duplicado
+
+        pago = Pago.objects.get(cotizacion=self.cot)
+        self.assertEqual(pago.cuenta_bancaria, pagadora)
+        mov.refresh_from_db()
+        self.assertEqual(mov.movimiento_contable.cuenta.codigo_sat, '102.02.04')
+        self.assertEqual(AbonoIdentificado.objects.get().estado, 'REGISTRADO')
