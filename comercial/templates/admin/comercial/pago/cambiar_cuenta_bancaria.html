@@ -1,0 +1,51 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Inicio</a>
+› <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+› <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+› Cambiar cuenta bancaria
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="qkt-pagina qkt-pagina--angosta">
+  <div class="qkt-pagina__cabecera">
+    <h1 class="qkt-pagina__titulo">{{ title }}</h1>
+  </div>
+
+  <div class="qkt-aviso qkt-aviso--alerta">
+    Reapunta la línea de bancos de la póliza del pago (y la de su comisión) a la cuenta que elijas. No cambia importes
+    ni folios. Si el pago ya está ligado a un renglón del estado de cuenta, se rechaza: desliga primero allí.
+  </div>
+
+  <p class="qkt-texto-2">Se aplicará a {{ queryset|length }} pago(s):</p>
+  <ul class="qkt-lista-objetos">
+    {% for obj in queryset %}
+      <li>{{ obj.cotizacion }} · ${{ obj.monto }} · {{ obj.get_metodo_display }} · {{ obj.cuenta_bancaria|default:"Banco principal" }}</li>
+    {% endfor %}
+  </ul>
+
+  <form method="post">
+    {% csrf_token %}
+    {% for obj in queryset %}
+      <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="confirmar" value="si">
+    <div class="qkt-campo">
+      <label for="id_cuenta">Cuenta bancaria destino</label>
+      <select name="cuenta" id="id_cuenta" required>
+        <option value="">---------</option>
+        {% for c in cuentas %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="qkt-botonera">
+      <button type="submit" class="qkt-btn qkt-btn--peligro">Cambiar cuenta</button>
+      <a href="{% url opts|admin_urlname:'changelist' %}" class="qkt-btn qkt-btn--secundario">Cancelar</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

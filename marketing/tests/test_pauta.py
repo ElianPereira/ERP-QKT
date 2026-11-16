@@ -267,6 +267,24 @@ class ConciliacionTest(TestCase):
         self.assertEqual(Pendiente.objects.filter(clave_idempotencia='marketing_conciliacion:2026-09').count(), 1)
         self.assertEqual(set(GastoPublicitario.objects.values_list('estado_conciliacion', flat=True)), {'DIFERENCIA'})
 
+    def test_con_dos_cuentas_y_un_solo_estado_no_evalua(self):
+        """Si llegó el estado de una cuenta y no el de la otra, faltan cargos: no se reportan diferencias falsas."""
+        self.cargo('900.00')
+        otra = CuentaBancaria.objects.create(
+            nombre='BBVA Mkt Egresos', banco='BBVA', clabe='012345678901234999', rol='PAGO',
+            cuenta_contable=CuentaContable.objects.get(codigo_sat='102.02.04'),
+            unidad_negocio=self.cuenta.unidad_negocio)
+        r = conciliacion.conciliar_mes(2026, 9)
+        self.assertEqual(r['estado'], GastoPublicitario.PENDIENTE)
+        self.assertFalse(Pendiente.objects.filter(clave_idempotencia='marketing_conciliacion:2026-09').exists())
+
+        EstadoCuentaBancario.objects.create(
+            cuenta_bancaria=otra, banco='BBVA', periodo_mes=9, periodo_anio=2026, formato='PDF',
+            estado='PROCESADO', fecha_corte_real=date(2026, 9, 30), saldo_inicial_estado=Decimal('0'),
+            saldo_final_estado=Decimal('0'))
+        r = conciliacion.conciliar_mes(2026, 9)
+        self.assertEqual((r['estado'], r['diferencia']), ('DIFERENCIA', Decimal('-600.00')))
+
     def test_tolerancia_es_parametro(self):
         self.cargo('1560.00')
         self.assertEqual(conciliacion.conciliar_mes(2026, 9, tolerancia_pct='0', tolerancia_minima='10')['estado'],

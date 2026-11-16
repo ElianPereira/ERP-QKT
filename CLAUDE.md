@@ -279,6 +279,22 @@ salvo que queden obsoletas.
 
 
 
+- 2026-11-16 — **Segunda cuenta BBVA, PR 3 de 3: cambio manual de cuenta y pauta con dos cuentas** (Issue #499; **mueve contabilidad**:
+  revisión del propietario; apilado sobre el PR 2; sin zonas restringidas; **sin migración**). `services_cuenta_bancaria.cambiar_cuenta_bancaria
+  (obj, nueva, usuario)` cambia la cuenta de un `Pago` o `MovimientoDeposito` ya registrado: bajo `select_for_update` reapunta la línea de
+  bancos de su póliza APLICADA (y la de su comisión TPV o de Openpay, que siguen al cobro), no cancela ni toca importes/folio, y escribe con
+  `update()` (sin `save()`: ni `full_clean` ni señales) dejando nota con usuario y fecha en `Pago.notas` o `MovimientoDeposito.desglose`.
+  **Rechaza sin escribir** si alguna línea ya está ligada a un renglón del estado de cuenta («desliga primero allí»), si la póliza cae en un
+  periodo cerrado (`SaldoApertura` aplicado de la cuenta vieja o la nueva), si la cuenta destino está inactiva o sin cuenta contable, si ya
+  está en esa cuenta o si el método no pasa por el banco (EFECTIVO/CONDONACION/NO_APLICA). Para una Compra sigue siendo
+  `reapuntar_banco_de_compra`. Admin: acción «Cambiar cuenta bancaria» en Pagos con paso intermedio propio (elige cuenta y confirma;
+  solo con `confirmar=si` y cuenta válida escribe, mismo candado que `confirmar_accion_destructiva`). **Marketing**: la conciliación de pauta
+  solo evalúa si hay movimientos del mes **y** estado PROCESADO del mes de cada `CuentaBancaria` activa; con uno solo de dos estados dejaba
+  diferencias falsas porque faltaban los cargos de la otra cuenta. **Cierra el plan v2** (`docs/plan_cuenta_pagadora_v2.md`). **No se
+  hizo**: captura de cuenta al registrar la recepción/liquidación de un depósito en garantía desde sus pantallas (la devolución por
+  transferencia ya toma la pagadora sola y el cambio posterior cubre el resto) ni la acción de cambio sobre `MovimientoDeposito` en el
+  admin (el servicio ya lo soporta).
+
 - 2026-11-16 — **Segunda cuenta BBVA, PR 2 de 3: traspasos entre cuentas propias** (Issue #499; **mueve contabilidad**: revisión del
   propietario antes del merge; apilado sobre el PR 1; sin zonas restringidas; migración `contabilidad.0045`, aditiva). Cada punta de un
   fondeo se asienta **sola contra la cuenta puente 102.03** «Traspasos entre cuentas propias (en tránsito)» (`TRASPASOS_EN_TRANSITO` en

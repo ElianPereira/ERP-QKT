@@ -29,6 +29,8 @@ from django.db.models import Sum
 from comunicacion.services_pendientes import registrar_pendiente
 from contabilidad.models import (
     ConfiguracionContable,
+    CuentaBancaria,
+    EstadoCuentaBancario,
     MovimientoContable,
     MovimientoEstadoCuenta,
     normalizar_texto_banco,
@@ -52,6 +54,16 @@ def _decimal(valor) -> Decimal:
     return Decimal(str(valor))
 
 
+def _hay_estados_del_mes(anio: int, mes: int, inicio: date, fin: date) -> bool:
+    """Hay movimientos del mes y el estado procesado del mes de **cada** cuenta bancaria activa. Con dos
+    cuentas, si llegó el estado de una y no el de la otra, faltan cargos y evaluar daría diferencias falsas."""
+    if not MovimientoEstadoCuenta.objects.filter(fecha__range=(inicio, fin)).exists():
+        return False
+    con_estado = set(EstadoCuentaBancario.objects.filter(
+        periodo_anio=anio, periodo_mes=mes, estado='PROCESADO').values_list('cuenta_bancaria_id', flat=True))
+    return all(c.pk in con_estado for c in CuentaBancaria.objects.filter(activa=True))
+
+
 def cargos_bancarios(anio: int, mes: int, plataforma: str = 'META') -> dict:
     patron = PATRONES[plataforma]
     inicio, fin = date(anio, mes, 1), date(anio, mes, calendar.monthrange(anio, mes)[1])
@@ -71,7 +83,7 @@ def cargos_bancarios(anio: int, mes: int, plataforma: str = 'META') -> dict:
         else:
             sin_clasificar += 1
     return {'total': impuestos.centavos(total), 'cantidad': cantidad, 'sin_clasificar': sin_clasificar,
-            'hay_movimientos': MovimientoEstadoCuenta.objects.filter(fecha__range=(inicio, fin)).exists()}
+            'hay_movimientos': _hay_estados_del_mes(anio, mes, inicio, fin)}
 
 
 def pagos_externos(anio: int, mes: int, plataforma: str = 'META') -> Decimal:
