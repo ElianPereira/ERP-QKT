@@ -5,10 +5,13 @@ from decimal import Decimal
 
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin import helpers
+from django.core.exceptions import PermissionDenied
 from django.db import models as db_models
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
+from django.template.response import TemplateResponse
 from django.urls import path, reverse
 from django.utils import timezone
 from django.utils.formats import date_format
@@ -1123,7 +1126,7 @@ class PagoAdmin(admin.ModelAdmin):
     search_help_text = 'Cliente, evento o referencia'
     readonly_fields = ('usuario', 'created_at', 'updated_at')
     date_hierarchy = 'fecha_pago'
-    actions = ['registrar_reembolso', 'reembolsar_en_openpay']
+    actions = ['registrar_reembolso', 'reembolsar_en_openpay', 'cambiar_cuenta_bancaria']
 
     def get_readonly_fields(self, request, obj=None):
         # La cuenta bancaria solo se elige al crear; cambiarla después reapunta la póliza (otro flujo).
@@ -1210,6 +1213,38 @@ class PagoAdmin(admin.ModelAdmin):
         for err in errores:
             self.message_user(request, err, messages.ERROR)
     registrar_reembolso.short_description = "Registrar reembolso (espejo del pago)"
+
+    @admin.action(description="Cambiar cuenta bancaria (reapunta la póliza)")
+    def cambiar_cuenta_bancaria(self, request, queryset):
+        """Paso intermedio propio: elige la cuenta y confirma; solo con `confirmar=si` y cuenta válida escribe."""
+        from contabilidad.models import CuentaBancaria
+        from contabilidad.services_cuenta_bancaria import CambioCuentaRechazado, cambiar_cuenta_bancaria
+
+        if not request.user.has_perm('comercial.change_pago'):
+            raise PermissionDenied
+        cuentas = CuentaBancaria.objects.filter(activa=True, cuenta_contable__isnull=False)
+        elegida = cuentas.filter(pk=request.POST.get('cuenta') or 0).first()
+        if request.POST.get('confirmar') == 'si' and elegida:
+            cambiados = 0
+            for pago in queryset:
+                try:
+                    cambiar_cuenta_bancaria(pago, elegida, request.user)
+                    cambiados += 1
+                except CambioCuentaRechazado as e:
+                    self.message_user(request, f"Pago #{pago.pk}: {e}", messages.ERROR)
+            if cambiados:
+                self.message_user(request, f"{cambiados} pago(s) cambiado(s) a «{elegida}».", messages.SUCCESS)
+            return None
+        contexto = {
+            **self.admin_site.each_context(request),
+            'title': "Cambiar cuenta bancaria",
+            'queryset': queryset,
+            'cuentas': cuentas,
+            'opts': self.model._meta,
+            'action_checkbox_name': helpers.ACTION_CHECKBOX_NAME,
+            'action_name': request.POST.get('action'),
+        }
+        return TemplateResponse(request, 'admin/comercial/pago/cambiar_cuenta_bancaria.html', contexto)
 
     @confirmar_accion_destructiva(
         "¿Reembolsar en Openpay los pagos seleccionados? Dispara el refund "
