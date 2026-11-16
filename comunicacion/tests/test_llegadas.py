@@ -1,6 +1,6 @@
 """Visitas de punta a punta (confirmación, recordatorios, llegada) y formato de avisos al equipo."""
 import json
-from datetime import time, timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -73,6 +73,14 @@ class EnvioAvisoTest(MocksVisitas, TestCase):
         self.assertIn('*Hola*\n\n• a', self.pendientes_enviar_whatsapp.call_args.kwargs['mensaje'])
 
 
+def _en_el_dia_local(inicio):
+    """`inicio` si sigue siendo hoy (hora local); si no, el último minuto de hoy. Sin esto, un test que
+    usa «ahora + 2 h» falla de las 22:00 a las 24:00, cuando esa hora cae mañana."""
+    fin_de_hoy = timezone.make_aware(
+        datetime.combine(timezone.localdate(), time(23, 59)), timezone.get_current_timezone())
+    return min(inicio, fin_de_hoy)
+
+
 @wa_settings(**AGENTE)
 class LlegadaTest(MocksVisitas, TestCase):
     def _llegada(self, situacion='ya_llego', **extra):
@@ -83,7 +91,8 @@ class LlegadaTest(MocksVisitas, TestCase):
 
     def _visita_hoy(self, estado='CONFIRMADA', minutos=20):
         return Visita.objects.create(nombre='Guadalupe Requena', telefono=TEL_CLIENTE, conversacion=self.conv,
-                                     personas=3, estado=estado, inicio=timezone.now() + timedelta(minutes=minutos))
+                                     personas=3, estado=estado,
+                                     inicio=_en_el_dia_local(timezone.now() + timedelta(minutes=minutos)))
 
     def test_la_herramienta_y_la_regla_estan_en_el_agente(self):
         self.assertIn('avisar_llegada', [h['name'] for h in herramientas_agente.HERRAMIENTAS])
@@ -188,7 +197,7 @@ class FlujoVisitaTest(MocksVisitas, TestCase):
 
     def test_si_ya_aviso_que_llego_no_se_le_recuerda_a_nadie(self):
         ahora = timezone.now()
-        visita = self._visita(ahora + timedelta(minutes=30))
+        visita = self._visita(_en_el_dia_local(ahora + timedelta(minutes=30)))
         services_llegada.avisar_llegada(self.conv, 'ya_llego')
         self.pendientes_enviar_whatsapp.reset_mock()
         self.pendientes_enviar_whatsapp_template.reset_mock()
@@ -226,7 +235,8 @@ class BotonYaLlegueTest(MocksVisitas, TestCase):
         self.ahora = timezone.now()
         self.visita = Visita.objects.create(
             nombre='Ana Ruiz', telefono=TEL_CLIENTE, conversacion=self.conv, estado='CONFIRMADA',
-            inicio=self.ahora + timedelta(minutes=100), decidida_en=self.ahora - timedelta(days=1))
+            inicio=_en_el_dia_local(self.ahora + timedelta(minutes=100)),
+            decidida_en=self.ahora - timedelta(days=1))
 
     def test_con_ventana_abierta_el_recordatorio_lleva_el_boton(self):
         services_visitas.enviar_avisos_previos(self.ahora)
