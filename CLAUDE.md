@@ -279,6 +279,23 @@ salvo que queden obsoletas.
 
 
 
+- 2026-11-16 — **Segunda cuenta BBVA, PR 2 de 3: traspasos entre cuentas propias** (Issue #499; **mueve contabilidad**: revisión del
+  propietario antes del merge; apilado sobre el PR 1; sin zonas restringidas; migración `contabilidad.0045`, aditiva). Cada punta de un
+  fondeo se asienta **sola contra la cuenta puente 102.03** «Traspasos entre cuentas propias (en tránsito)» (`TRASPASOS_EN_TRANSITO` en
+  `ConfiguracionContable`; la migración la crea con `get_or_create` y no toca una 102.03 existente): cargo = DEBE puente / HABER banco,
+  abono al revés, cero gasto e ingreso. No empareja las dos puntas: cada una se asienta en cualquier orden y mes, idempotente por
+  movimiento, y **saldo de la puente ≠ 0 = traspaso con una punta pendiente** (mismo patrón que 106.02). `es_traspaso_propio(mov)`
+  (`services_reglas_banco`) detecta la otra cuenta propia activa por `numero_cuenta`, CLABE o sus últimos 10 dígitos en
+  descripción+referencia (≥ 8 dígitos y como cadena completa, nunca la cuenta del propio estado). **Formato real del SPEI BBVA→BBVA sin
+  calibrar**: si no trae el número, queda sin regla (visible) y el respaldo es una `ReglaConciliacion` con operación
+  `TRASPASOS_EN_TRANSITO` (ya seleccionable en el admin); nunca cae a pago de cliente. En `emparejar_y_asentar` el paso va **después de
+  `_emparejar_automaticamente` y antes de `identificar_abonos`**, y `_regla_que_lo_cubre` excluye lo que detecta como traspaso, así que la
+  capa 3 (solo monto) no propone un fondeo como pago de un cliente. `analizar_conciliacion` trae `traspasos_en_transito` y las acciones
+  «Volver a emparejar» y «Generar conciliación» avisan si no es cero. Histórico: `reclasificar_traspasos_propios [--desde] [--aplicar]`
+  (simula por defecto, `services_traspasos.py`) reapunta a la puente la contrapartida de RETIROS_DUENO/APORTACIONES_DUENO/
+  PARTIDAS_POR_IDENTIFICAR sin cancelar ni cambiar importes, y lista lo no resuelto (periodo cerrado por `SaldoApertura`, otra cuenta).
+  **Pendiente del propietario tras el deploy**: correr el comando en simulación con `--desde` la fecha del primer fondeo, revisar y aplicar.
+
 - 2026-11-14 — **Segunda cuenta BBVA (pagadora), PR 1 de 3** (Issue #499, `docs/plan_cuenta_pagadora_v2.md`; **mueve dinero y
   contabilidad**: va a revisión del propietario, sin zonas restringidas; migraciones aditivas `contabilidad.0044` y `comercial.0125`).
   `CuentaBancaria.rol` (AMBOS/COBRO/PAGO, solo preferencia) y `CuentaBancaria.pagadora(unidad)` (la única PAGO; sin PAGO, la única

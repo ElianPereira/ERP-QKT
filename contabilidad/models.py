@@ -855,6 +855,7 @@ class ConfiguracionContable(models.Model):
         ('INVERSIONES', 'Inversiones (dinero enviado a o recuperado de una inversión)'),
         ('GASTO_NO_DEDUCIBLE', 'No deducible - Gastos de administración (sin CFDI)'),
         ('PARTIDAS_POR_IDENTIFICAR', 'Partidas bancarias por identificar'),
+        ('TRASPASOS_EN_TRANSITO', 'Traspasos entre cuentas propias (en tránsito)'),
     ]
 
     operacion = models.CharField(

@@ -140,6 +140,65 @@ def crear_poliza_desde_movimiento(movimiento, cuenta_contrapartida, usuario, *, 
     return poliza
 
 
+def _patrones_de_cuenta(cuenta):
+    """Números con los que BBVA puede nombrar una cuenta propia en un concepto (mínimo 8 dígitos)."""
+    candidatos = {(cuenta.numero_cuenta or '').strip(), (cuenta.clabe or '').strip(), (cuenta.clabe or '').strip()[-10:]}
+    return [c for c in candidatos if c.isdigit() and len(c) >= 8]
+
+
+def es_traspaso_propio(movimiento):
+    """
+    La otra cuenta propia (CuentaBancaria activa, con cuenta contable, distinta de la del estado) que
+    el concepto del banco nombra por su número de cuenta o CLABE, o None. El número debe aparecer como
+    cadena de dígitos completa (no dentro de una referencia más larga). Si el formato real de BBVA no
+    trae el número, el fallback es una ReglaConciliacion con operación TRASPASOS_EN_TRANSITO.
+    """
+    import re
+
+    from .models import CuentaBancaria
+
+    texto = normalizar_texto_banco(f"{movimiento.descripcion or ''} {movimiento.referencia or ''}")
+    if not texto:
+        return None
+    propia = movimiento.estado_cuenta.cuenta_bancaria_id
+    otras = CuentaBancaria.objects.filter(activa=True, cuenta_contable__isnull=False).exclude(pk=propia)
+    for cuenta in otras:
+        for numero in _patrones_de_cuenta(cuenta):
+            if re.search(rf'(?<!\d){re.escape(numero)}(?!\d)', texto):
+                return cuenta
+    return None
+
+
+def asentar_traspasos_propios(estado_cuenta, usuario=None):
+    """
+    Cada punta de un traspaso entre cuentas propias se asienta sola contra la cuenta puente
+    (TRASPASOS_EN_TRANSITO): cargo = DEBE puente / HABER banco; abono = DEBE banco / HABER puente. Sin gasto
+    ni ingreso, sin esperar a la otra punta, en cualquier orden. Idempotente (una póliza por movimiento).
+    Saldo ≠ 0 de la puente = traspaso con una punta pendiente. Devuelve cuántos asentó.
+    """
+    from .services_abonos import ids_movimientos_en_bitacora
+
+    puente = ConfiguracionContable.obtener_cuenta('TRASPASOS_EN_TRANSITO')
+    if puente is None or not estado_cuenta.cuenta_bancaria.cuenta_contable_id:
+        return 0
+    usuario = usuario or usuario_sistema()
+    en_bitacora = ids_movimientos_en_bitacora()
+    asentados = 0
+    pendientes = (estado_cuenta.movimientos.filter(movimiento_contable__isnull=True)
+                  .exclude(pk__in=en_bitacora).order_by('fecha', 'id'))
+    for mov in pendientes:
+        if _poliza_del_movimiento(mov) or es_traspaso_propio(mov) is None:
+            continue
+        try:
+            crear_poliza_desde_movimiento(mov, puente, usuario, aplicar=True,
+                                          concepto='Traspaso entre cuentas propias')
+        except Exception as e:  # un movimiento roto no debe frenar a los demás
+            logger.warning("No se pudo asentar el traspaso propio %s: %s", mov.pk, e)
+            continue
+        asentados += 1
+    return asentados
+
+
 def vincular_polizas_propias(estado_cuenta):
     """Empareja los movimientos cuya póliza BANCO quedó en borrador y alguien
     aplicó después. Devuelve cuántos vinculó."""

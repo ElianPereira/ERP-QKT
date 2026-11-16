@@ -45,7 +45,7 @@ from .models import (
     ReglaConciliacion,
     normalizar_texto_banco,
 )
-from .services_reglas_banco import _vincular_linea
+from .services_reglas_banco import _vincular_linea, es_traspaso_propio
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,9 @@ def _folios(mov) -> list:
 
 
 def _regla_que_lo_cubre(mov) -> bool:
-    return any(r.coincide(mov) for r in ReglaConciliacion.objects.filter(activa=True))
+    """Lo que ya cubre una regla o es un traspaso entre cuentas propias (un fondeo nunca es pago de cliente)."""
+    return (any(r.coincide(mov) for r in ReglaConciliacion.objects.filter(activa=True))
+            or es_traspaso_propio(mov) is not None)
 
 
 def _motivo_no_registrable(cot, importe) -> str:
