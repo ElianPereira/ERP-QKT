@@ -112,7 +112,8 @@ class BaseCorreoTest(TestCase):
 
     def setUp(self):
         self.cuenta = CuentaBancaria.objects.create(
-            nombre='BBVA Maestra', banco='BBVA', numero_cuenta=NUMERO_CUENTA, clabe='012345678901234567')
+            nombre='BBVA Maestra', banco='BBVA', numero_cuenta=NUMERO_CUENTA, clabe='012345678901234567',
+            fecha_saldo_inicial=date(2025, 1, 1))  # cuenta de siempre: ya operaba en los meses que se prueban
         self.pdf = PDF.read_bytes()
         patcher = patch(AVISO)
         self.aviso = patcher.start()
@@ -709,6 +710,22 @@ class NoLlegoTest(BaseCorreoTest):
             cuenta_bancaria=self.cuenta, periodo_mes=10, periodo_anio=2026, formato='PDF',
             archivo=io_archivo(b'octubre'), estado='PROCESADO')
         self.assertEqual(servicio.avisar_si_no_llego(date(2026, 11, 9)), 0)
+
+    def test_una_cuenta_dada_de_alta_en_noviembre_no_avisa_por_octubre_pero_si_por_noviembre(self):
+        self.cuenta.fecha_saldo_inicial = date(2026, 11, 3)
+        self.cuenta.save()
+        self.assertEqual(servicio.avisar_si_no_llego(date(2026, 11, 9)), 0)
+        self.assertFalse(Pendiente.objects.exists())
+        self.assertEqual(servicio.avisar_si_no_llego(date(2026, 12, 9)), 1)
+        self.assertIn('noviembre 2026', Pendiente.objects.get().titulo)
+
+    def test_operaba_en_usa_la_fecha_de_alta_si_no_hay_saldo_inicial(self):
+        from django.utils import timezone
+        self.cuenta.fecha_saldo_inicial = None
+        self.cuenta.save()
+        hoy = timezone.localdate()
+        self.assertTrue(self.cuenta.operaba_en(hoy.year, hoy.month))
+        self.assertFalse(self.cuenta.operaba_en(hoy.year - 1, hoy.month))
 
     def test_el_comando_con_aplicar_avisa_y_enero_mira_diciembre(self):
         with patch('contabilidad.services_estados_correo.timezone.localdate', return_value=date(2027, 1, 8)):

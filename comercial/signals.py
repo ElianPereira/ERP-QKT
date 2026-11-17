@@ -10,6 +10,18 @@ logger = logging.getLogger(__name__)
 
 
 @receiver(post_save, sender='comercial.Cotizacion')
+def atribuir_vendedor_al_crear(sender, instance, created, **kwargs):
+    """Una cotización de la web o de Kooxi (sin usuario del ERP) se atribuye al personal de
+    ventas si el cliente vino de una visita suya o de una cotización suya reciente (Issue #505).
+    Va dentro de la misma transacción del alta para que las alertas ya la vean atribuida."""
+    if not created or instance.usuario_id or instance.es_historica:
+        return
+    from ventas.services_atribucion import atribuir_por_creacion
+
+    atribuir_por_creacion(instance)
+
+
+@receiver(post_save, sender='comercial.Cotizacion')
 def emitir_contrato_al_confirmar(sender, instance, **kwargs):
     """
     En cuanto una cotización queda CONFIRMADA se emite su contrato y se le

@@ -317,6 +317,7 @@ class Responsable(models.Model):
         ('DIRECCION', 'Dirección'),
         ('CONTADOR', 'Contador'),
         ('COMPRAS', 'Compras'),
+        ('VENTAS', 'Ventas'),
     ]
     COPIA_CHOICES = [
         ('EN_VIVO', 'En vivo'),
@@ -589,6 +590,17 @@ class Visita(models.Model):
     decidida_en = models.DateTimeField(null=True, blank=True, verbose_name='Decidida')
     decidida_por = models.CharField(max_length=100, blank=True, verbose_name='Decidida por')
     recordatorio_en = models.DateTimeField(null=True, blank=True, verbose_name='Recordatorio enviado')
+    # --- Personal de ventas (Issue #505) ---
+    ORIGEN_CHOICES = [('KOOXI', 'Kooxi'), ('MANUAL', 'Alta manual')]
+    RESULTADO_CHOICES = [('', 'Pendiente'), ('ATENDIDA', 'Atendida'), ('NO_LLEGO', 'No llegó')]
+    vendedor = models.ForeignKey('nomina.Empleado', null=True, blank=True, on_delete=models.PROTECT,
+                                 related_name='visitas', verbose_name='Atendida por')
+    origen = models.CharField(max_length=10, choices=ORIGEN_CHOICES, default='KOOXI', verbose_name='Origen')
+    resultado = models.CharField(max_length=10, choices=RESULTADO_CHOICES, blank=True, default='',
+                                 verbose_name='Resultado')
+    atendida_en = models.DateTimeField(null=True, blank=True, verbose_name='Cierre registrado')
+    atendida_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
+                                     related_name='+', verbose_name='Cierre registrado por')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name='+', verbose_name='Creado por')
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,

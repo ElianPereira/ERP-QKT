@@ -174,7 +174,64 @@ class FlujoTest(Base):
         self.assertIn('Flujo neto $11,600.00 $2,320.00 $9,280.00', texto)
         self.assertIn('Febrero 2026 $11,600.00 $2,320.00 $9,280.00 $109,280.00', texto)
         hoja = self._excel('flujo')['Por cuenta']
-        self.assertEqual([c.value for c in hoja[2]][1:], [100000, 11600, 2320, 109280])
+        self.assertEqual([c.value for c in hoja[2]][1:], [100000, 11600, 2320, 0, 109280])
+
+
+class FlujoConTraspasosTest(FlujoTest):
+    """Un fondeo entre las dos cuentas propias: aparte, fuera de entradas y salidas, y sin mover los saldos."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        from contabilidad.models import (
+            ConfiguracionContable,
+            CuentaBancaria,
+            CuentaContable,
+            MovimientoContable,
+            Poliza,
+            UnidadNegocio,
+        )
+
+        pagadora = CuentaContable.objects.get(codigo_sat='102.02.04')
+        CuentaBancaria.objects.create(nombre='BBVA Egresos', banco='BBVA', clabe='012345678901234598',
+                                      cuenta_contable=pagadora, rol='PAGO')
+        banco = CuentaContable.objects.get(codigo_sat='102.02.01')
+        puente = ConfiguracionContable.obtener_cuenta('TRASPASOS_EN_TRANSITO')
+        unidad = UnidadNegocio.objects.get(clave='QUINTA')
+        fecha = date(2026, 2, 12)
+        # Cargo en Ingresos (sale) y abono en Egresos (entra), cada punta contra la puente.
+        for tipo, cuenta, debe, haber in (('E', banco, '0', '5000.00'), ('I', pagadora, '5000.00', '0')):
+            p = Poliza.objects.create(tipo=tipo, folio=Poliza.siguiente_folio(tipo, fecha), fecha=fecha,
+                                      concepto='Traspaso entre cuentas propias', unidad_negocio=unidad,
+                                      estado='APLICADA', origen='BANCO', created_by=cls.usuario)
+            MovimientoContable.objects.create(poliza=p, cuenta=cuenta, debe=D(debe), haber=D(haber))
+            MovimientoContable.objects.create(poliza=p, cuenta=puente, debe=D(haber), haber=D(debe))
+
+    def test_servicio(self):
+        from reportes.services.finanzas import FlujoEfectivoService
+
+        datos = FlujoEfectivoService.generar(INICIO, FIN)
+        # Entradas y salidas del negocio sin el fondeo; el neto de traspasos entre cuentas es cero.
+        self.assertEqual((datos['entradas'], datos['salidas'], datos['neto']),
+                         (D('11600.00'), D('2320.00'), D('9280.00')))
+        self.assertEqual((datos['traspasos_entradas'], datos['traspasos_salidas'], datos['traspasos']),
+                         (D('5000.00'), D('5000.00'), D('0.00')))
+        self.assertEqual(datos['saldo_final'], D('109280.00'))
+        # Los saldos por cuenta incluyen el traspaso: Ingresos baja 5,000 y Egresos sube 5,000.
+        saldos = {c['nombre'].split(' - ')[1]: c['saldo_final'] for c in datos['cuentas']}
+        self.assertEqual(saldos, {'BBVA Maestra PYME': D('104280.00'), 'BBVA Egresos': D('5000.00')})
+        self.assertEqual({o['nombre'] for o in datos['origenes']}, {'Pago de cliente', 'Compra/Gasto'})
+
+    def test_pdf_y_excel(self):
+        texto = self._texto('flujo')
+        self.assertIn('Traspasos entre cuentas propias', texto)
+        self.assertIn('Total $5,000.00 $5,000.00 $0.00', texto)
+        self.assertIn('Flujo neto $11,600.00 $2,320.00 $9,280.00', texto)
+        libro = self._excel('flujo')
+        self.assertIn('Traspasos entre cuentas propias', libro.sheetnames)
+        filas = {fila[0].value.split(' - ')[1]: [c.value for c in fila][1:] for fila in libro['Por cuenta'].iter_rows(min_row=2)}
+        self.assertEqual(filas, {'BBVA Egresos': [0, 0, 0, 5000, 5000],
+                                 'BBVA Maestra PYME': [100000, 11600, 2320, -5000, 104280]})
 
 
 class OcupacionTest(Base):

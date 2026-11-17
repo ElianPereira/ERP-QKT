@@ -12,6 +12,7 @@
     <div><dt>{% if cotizacion.tipo_servicio == 'EVENTO' %}Evento{% else %}Detalle{% endif %}</dt><dd>{{ cotizacion.nombre_evento }}</dd></div>
     <div><dt>{% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}Huéspedes{% else %}Personas{% endif %}</dt><dd>{{ cotizacion.num_personas }}</dd></div>
     <div><dt>Correo</dt><dd>{{ cotizacion.cliente.email|default:"—" }}</dd></div>
+    {% if cotizacion.vendedor %}<div><dt>Atendido por</dt><dd>{{ cotizacion.vendedor.nombre }}</dd></div>{% endif %}
   </dl>
   <dl class="doc-datos">
     {% if cotizacion.tipo_servicio == 'HOSPEDAJE' %}

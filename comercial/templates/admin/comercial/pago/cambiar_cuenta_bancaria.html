@@ -17,14 +17,14 @@
   </div>
 
   <div class="qkt-aviso qkt-aviso--alerta">
-    Reapunta la línea de bancos de la póliza del pago (y la de su comisión) a la cuenta que elijas. No cambia importes
-    ni folios. Si el pago ya está ligado a un renglón del estado de cuenta, se rechaza: desliga primero allí.
+    Reapunta la línea de bancos de la póliza (y la de su comisión) a la cuenta que elijas. No cambia importes
+    ni folios. Si ya está ligado a un renglón del estado de cuenta, se rechaza: desliga primero allí.
   </div>
 
-  <p class="qkt-texto-2">Se aplicará a {{ queryset|length }} pago(s):</p>
+  <p class="qkt-texto-2">Se aplicará a {{ queryset|length }} {{ opts.verbose_name }}(s):</p>
   <ul class="qkt-lista-objetos">
     {% for obj in queryset %}
-      <li>{{ obj.cotizacion }} · ${{ obj.monto }} · {{ obj.get_metodo_display }} · {{ obj.cuenta_bancaria|default:"Banco principal" }}</li>
+      <li>{% if obj.deposito %}{{ obj.deposito.cotizacion }}{% else %}{{ obj.cotizacion }}{% endif %} · ${{ obj.monto }} · {{ obj.get_metodo_display }} · {{ obj.cuenta_bancaria|default:"Banco principal" }}</li>
     {% endfor %}
   </ul>
 

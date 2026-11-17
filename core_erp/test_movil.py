@@ -325,6 +325,23 @@ class PaginasMovilTest(MovilBase):
                 problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
         self.assertEqual(problemas, [], 'Horarios/Visitas desbordan en móvil:\n' + '\n'.join(problemas))
 
+    def test_pantallas_de_ventas_no_desbordan(self):
+        """Alta de visita (la usa la vendedora desde el celular), cotización, expediente y condiciones."""
+        from nomina.models import CondicionesPago, Empleado
+        ana = Empleado.objects.create(nombre='Ana Móvil', puesto='VENTAS')
+        condiciones = CondicionesPago.objects.create(empleado=ana, vigente_desde=date.today())
+        problemas = []
+        for ruta in (reverse('admin:comunicacion_visita_add'),
+                     reverse('admin:comercial_cotizacion_change', args=[self.cotizacion.pk]),
+                     reverse('admin:nomina_empleado_change', args=[ana.pk]),
+                     reverse('admin:nomina_condicionespago_changelist'),
+                     reverse('admin:nomina_condicionespago_change', args=[condiciones.pk])):
+            res = self.barrer(ruta)
+            culpables = self.page.evaluate(JS_CULPABLES) if ('/change/' in ruta or '/add/' in ruta) else []
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        self.assertEqual(problemas, [], 'Pantallas de ventas desbordan en móvil:\n' + '\n'.join(problemas))
+
     def test_bandeja_de_pendientes_no_desborda(self):
         from django.utils import timezone
 

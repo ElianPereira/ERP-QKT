@@ -32,6 +32,7 @@ def _parse_fecha(request, campo, default=None):
         except (ValueError, TypeError):
             pass
     return default
+from ventas.permisos import no_para_vendedor
 
 
 def _registrar_reporte(request, tipo, fecha_inicio, fecha_fin, formato='PDF', parametros=None):
@@ -56,6 +57,7 @@ def _render_pdf(request, template, context, filename):
 # ==========================================
 
 @staff_member_required
+@no_para_vendedor
 def selector_reportes(request):
     """Página principal del centro de reportes."""
     from contabilidad.models import CuentaContable, UnidadNegocio
@@ -313,6 +315,7 @@ def reporte_auxiliar(request):
 
 @staff_member_required
 @permission_required('comercial.view_pago', raise_exception=True)
+@no_para_vendedor
 def reporte_cxc(request):
     """Genera reporte de CxC / Antigüedad de Saldos en PDF."""
     from .services.comercial import CxCCarteraService
@@ -333,6 +336,7 @@ def reporte_cxc(request):
 
 @staff_member_required
 @permission_required('comercial.view_cotizacion', raise_exception=True)
+@no_para_vendedor
 def reporte_cotizaciones(request):
     """Genera reporte de cotizaciones por período/estado en PDF."""
     from .services.comercial import CotizacionesPeriodoService
@@ -391,6 +395,7 @@ def reporte_facturas(request):
 
 @staff_member_required
 @permission_required('comercial.view_cotizacion', raise_exception=True)
+@no_para_vendedor
 def reporte_rentabilidad(request):
     """Rentabilidad por evento + gastos operativos, en PDF o Excel."""
     from .services.comercial import RentabilidadEventosService
@@ -428,6 +433,7 @@ def reporte_rentabilidad(request):
 
 @staff_member_required
 @permission_required('comercial.view_pago', raise_exception=True)
+@no_para_vendedor
 def reporte_pagos(request):
     """Pagos del periodo (cobros, reembolsos y cortesías), en PDF o Excel."""
     from .services.comercial import PagosRecibidosService
@@ -526,16 +532,19 @@ def reporte_flujo(request):
     return _entregar(request, 'FLUJO', 'FlujoEfectivo', 'reportes/pdf_flujo.html', datos, lambda: [
         ('Por origen', ['Origen', 'Entradas', 'Salidas', 'Neto'],
          [(o['nombre'], o['entradas'], o['salidas'], o['neto']) for o in datos['origenes']]),
-        ('Por mes', ['Mes', 'Entradas', 'Salidas', 'Neto', 'Saldo al cierre'],
-         [(m['mes'], m['entradas'], m['salidas'], m['neto'], m['saldo']) for m in datos['meses']]),
-        ('Por cuenta', ['Cuenta', 'Saldo inicial', 'Entradas', 'Salidas', 'Saldo final'],
-         [(c['nombre'], c['saldo_inicial'], c['entradas'], c['salidas'], c['saldo_final'])
+        ('Traspasos entre cuentas propias', ['Cuenta', 'Recibido', 'Enviado', 'Neto'],
+         [(c['nombre'], c['traspasos_entradas'], c['traspasos_salidas'], c['traspasos']) for c in datos['cuentas']]),
+        ('Por mes', ['Mes', 'Entradas', 'Salidas', 'Neto', 'Traspasos', 'Saldo al cierre'],
+         [(m['mes'], m['entradas'], m['salidas'], m['neto'], m['traspasos'], m['saldo']) for m in datos['meses']]),
+        ('Por cuenta', ['Cuenta', 'Saldo inicial', 'Entradas', 'Salidas', 'Traspasos', 'Saldo final'],
+         [(c['nombre'], c['saldo_inicial'], c['entradas'], c['salidas'], c['traspasos'], c['saldo_final'])
           for c in datos['cuentas']]),
     ])
 
 
 @staff_member_required
 @permission_required('comercial.view_cotizacion', raise_exception=True)
+@no_para_vendedor
 def reporte_ocupacion(request):
     """Ocupación de la Quinta: días vendidos, bloqueados y libres."""
     from .services.operacion import OcupacionService
@@ -576,6 +585,7 @@ def reporte_depositos(request):
 
 @staff_member_required
 @permission_required('comercial.view_descuentoaplicado', raise_exception=True)
+@no_para_vendedor
 def reporte_cortesias(request):
     """Cortesías, promociones y condonaciones del periodo."""
     from .services.operacion import CortesiasDescuentosService

@@ -80,6 +80,7 @@ from .services_responsables import (
     confirmar_numero,
     es_acepto,
     rol_de_telefono,
+    rol_ventas,
     telefonos_aviso,
 )
 
@@ -1010,8 +1011,22 @@ def _pasar_a_humano(conv, motivo: str, avisar: bool = True, categoria: str = '')
     registrar_pendiente(
         titulo=f"{conv.nombre or 'Un cliente'} ({conv.telefono}) necesita atención en WhatsApp",
         detalle=f'Motivo: {conv.motivo_humano}. Contéstale desde Admin, Conversaciones.',
-        rol='ENCARGADO', tipo='QUEJA' if categoria == 'queja' else 'PASE_HUMANO', severidad='URGENTE',
-        objeto=conv)
+        rol=_rol_del_pase(conv, categoria), tipo='QUEJA' if categoria == 'queja' else 'PASE_HUMANO',
+        severidad='URGENTE', objeto=conv)
+
+
+def _rol_del_pase(conv, categoria: str) -> str:
+    """Un pase a humano de un cliente con cotización abierta atendida por Ventas le toca a Ventas (si hay
+    responsable); una queja y todo lo demás, al encargado (Issue #505)."""
+    if categoria == 'queja':
+        return 'ENCARGADO'
+    try:
+        from ventas.services_atribucion import tiene_cotizacion_abierta_con_vendedor
+        if tiene_cotizacion_abierta_con_vendedor(conv.telefono):
+            return rol_ventas()
+    except Exception:
+        logger.exception('Agente WhatsApp: no se pudo decidir el destino del pase a humano')
+    return 'ENCARGADO'
 
 
 def _avisar_propietario(aviso: Aviso, rol: str = 'ENCARGADO') -> None:

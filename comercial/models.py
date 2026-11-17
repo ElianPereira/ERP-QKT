@@ -527,7 +527,7 @@ class Cliente(models.Model):
     email = models.EmailField(blank=True)
     telefono = models.CharField(max_length=20, blank=True, verbose_name='Teléfono')
     fecha_registro = models.DateTimeField(auto_now_add=True)
-    origen = models.CharField(max_length=50, choices=[('Instagram','Instagram'), ('Facebook','Facebook'), ('Google','Google'), ('Recomendacion','Recomendación'), ('Otro','Otro')], default='Otro')
+    origen = models.CharField(max_length=50, choices=[('Instagram','Instagram'), ('Facebook','Facebook'), ('Google','Google'), ('Recomendacion','Recomendación'), ('Vendedor','Vendedor'), ('Otro','Otro')], default='Otro')
     es_cliente_fiscal = models.BooleanField(default=False, verbose_name="¿Datos Fiscales?")
     tipo_persona = models.CharField(max_length=10, choices=[('FISICA','Física'), ('MORAL','Moral')], default='FISICA')
     rfc = models.CharField(max_length=13, blank=True, null=True, verbose_name="RFC")
@@ -650,6 +650,23 @@ class Cotizacion(models.Model):
 
     usuario = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     descuento = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
+    # --- Atribución de venta (Issue #505): quién atendió esta cotización ---
+    ORIGENES_VENDEDOR = [
+        ('COTIZO', 'La cotizó'),
+        ('VISITA', 'Visita atendida'),
+        ('SEGUIMIENTO', 'Seguimiento de su cotización'),
+        ('MANUAL', 'Asignada por Dirección'),
+    ]
+    vendedor = models.ForeignKey(
+        'nomina.Empleado', null=True, blank=True, on_delete=models.PROTECT, editable=False,
+        related_name='cotizaciones_atendidas', verbose_name='Atendido por')
+    vendedor_origen = models.CharField(max_length=12, choices=ORIGENES_VENDEDOR, blank=True, editable=False,
+                                       verbose_name='Origen de la atribución')
+    vendedor_asignado_en = models.DateTimeField(null=True, blank=True, editable=False,
+                                                verbose_name='Atribuida el')
+    vendedor_asignado_por = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                                              editable=False, related_name='+', verbose_name='Atribuida por')
     requiere_factura = models.BooleanField(default=False)
 
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)

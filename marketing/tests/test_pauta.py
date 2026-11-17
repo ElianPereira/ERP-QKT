@@ -226,7 +226,7 @@ class ConciliacionTest(TestCase):
             operacion='NO_DEDUCIBLE_VENTA', defaults={'cuenta': self.no_deducible, 'activa': True})
         self.cuenta = CuentaBancaria.objects.create(
             nombre='BBVA Mkt', banco='BBVA', clabe='012345678901234888', cuenta_contable=self.banco,
-            unidad_negocio=UnidadNegocio.objects.get(clave='QUINTA'))
+            fecha_saldo_inicial=date(2025, 1, 1), unidad_negocio=UnidadNegocio.objects.get(clave='QUINTA'))
         self.estado = EstadoCuentaBancario.objects.create(
             cuenta_bancaria=self.cuenta, banco='BBVA', periodo_mes=9, periodo_anio=2026, formato='PDF',
             estado='PROCESADO', fecha_corte_real=date(2026, 9, 30), saldo_inicial_estado=Decimal('0'),
@@ -273,7 +273,7 @@ class ConciliacionTest(TestCase):
         otra = CuentaBancaria.objects.create(
             nombre='BBVA Mkt Egresos', banco='BBVA', clabe='012345678901234999', rol='PAGO',
             cuenta_contable=CuentaContable.objects.get(codigo_sat='102.02.04'),
-            unidad_negocio=self.cuenta.unidad_negocio)
+            fecha_saldo_inicial=date(2025, 1, 1), unidad_negocio=self.cuenta.unidad_negocio)
         r = conciliacion.conciliar_mes(2026, 9)
         self.assertEqual(r['estado'], GastoPublicitario.PENDIENTE)
         self.assertFalse(Pendiente.objects.filter(clave_idempotencia='marketing_conciliacion:2026-09').exists())
@@ -284,6 +284,15 @@ class ConciliacionTest(TestCase):
             saldo_final_estado=Decimal('0'))
         r = conciliacion.conciliar_mes(2026, 9)
         self.assertEqual((r['estado'], r['diferencia']), ('DIFERENCIA', Decimal('-600.00')))
+
+    def test_una_cuenta_nueva_no_bloquea_los_meses_en_que_aun_no_operaba(self):
+        """La pagadora se dio de alta en noviembre: la pauta de septiembre se evalúa con el estado de la otra."""
+        self.cargo('1500.00')
+        CuentaBancaria.objects.create(
+            nombre='BBVA Mkt Egresos', banco='BBVA', clabe='012345678901234999', rol='PAGO',
+            cuenta_contable=CuentaContable.objects.get(codigo_sat='102.02.04'),
+            fecha_saldo_inicial=date(2026, 11, 3), unidad_negocio=self.cuenta.unidad_negocio)
+        self.assertEqual(conciliacion.conciliar_mes(2026, 9)['estado'], 'CONCILIADO')
 
     def test_tolerancia_es_parametro(self):
         self.cargo('1560.00')

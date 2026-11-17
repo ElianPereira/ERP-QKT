@@ -284,6 +284,11 @@ table.doc-tabla tbody tr.detalle:nth-child(even) td { background: transparent; }
 .doc--contractual td.num { text-align: right; white-space: nowrap; }
 .doc--contractual td.hash { font-family: monospace; font-size: 7.5pt; word-break: break-all; }
 
+/* Datos que se llenan en el documento (acuerdos): subrayado como renglón en blanco */
+.doc--contractual .en-blanco { display: inline-block; min-width: 150pt; border-bottom: 1px solid var(--tinta); font-weight: 600; text-align: center; }
+.doc--contractual .en-blanco--corto { min-width: 70pt; }
+.doc--contractual .en-blanco--minimo { min-width: 24pt; }
+
 /* Nota destacada: el blockquote de los documentos legales */
 .doc--contractual .nota {
   border-left: 3px solid var(--verde); background: var(--verde-bg);

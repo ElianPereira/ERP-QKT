@@ -268,3 +268,22 @@ def columna_privacidad(vigentes: set, cliente_de):
         return ui.badge('Pendiente', ui.ALERTA)
     privacidad.short_description = 'Privacidad'
     return privacidad
+
+
+class VendedorFilter(admin.SimpleListFilter):
+    """Quién atendió la cotización (Issue #505)."""
+    title = 'Atendido por'
+    parameter_name = 'vendedor'
+
+    def lookups(self, request, model_admin):
+        from nomina.models import Empleado
+
+        opciones = [(str(e.pk), e.nombre) for e in Empleado.objects.filter(puesto='VENTAS').order_by('nombre')]
+        return [('sin', 'Sin vendedor')] + opciones
+
+    def queryset(self, request, queryset):
+        if self.value() == 'sin':
+            return queryset.filter(vendedor__isnull=True)
+        if self.value():
+            return queryset.filter(vendedor_id=self.value())
+        return queryset

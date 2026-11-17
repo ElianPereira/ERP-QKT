@@ -133,7 +133,9 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     3. CFDI cargado (carga masiva de XML) que calza con el cargo: ya marcado
        pagado desde esta cuenta (se liga su línea de bancos) o sin cuenta de
        pago (se completa y aplica su póliza).
-    3b. Traspasos entre cuentas propias: cada punta contra la cuenta puente (`asentar_traspasos_propios`).
+    3b. Traspasos entre cuentas propias: cada punta contra la cuenta puente (`asentar_traspasos_propios`) y los
+        fondeos «TRASPASO CUENTAS PROPIAS» con su pareja en la otra cuenta (`asentar_fondeos`; sin pareja esperan
+        el otro estado, y al final se reintentan los de las otras cuentas).
     4. Abonos de clientes que transfirieron directo: el folio COT-NNN en el concepto
        crea el Pago; nombre o monto solo se proponen a Dirección (`services_abonos`).
     5. Reglas por texto del concepto o cuenta del tercero.
@@ -142,8 +144,10 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     from .services_abonos import identificar_abonos
     from .services_reglas_banco import (
         aplicar_reglas,
+        asentar_fondeos,
         asentar_traspasos_propios,
         emparejar_compras_ya_pagadas,
+        reintentar_fondeos_cruzados,
         sustituir_asientos_provisionales_por_cfdi,
         usuario_sistema,
         vincular_polizas_propias,
@@ -153,11 +157,14 @@ def emparejar_y_asentar(estado_cuenta, usuario=None):
     vincular_polizas_propias(estado_cuenta)
     _emparejar_automaticamente(estado_cuenta)
     asentar_traspasos_propios(estado_cuenta, usuario)  # antes de los abonos: un fondeo no es pago de cliente
+    asentar_fondeos(estado_cuenta, usuario)
     identificar_abonos(estado_cuenta)
     sustituir_asientos_provisionales_por_cfdi(estado_cuenta, usuario)
     emparejar_compras_ya_pagadas(estado_cuenta)
     aplicar_sugerencias_compras(estado_cuenta, usuario)
-    return aplicar_reglas(estado_cuenta, usuario=usuario)
+    resumen = aplicar_reglas(estado_cuenta, usuario=usuario)
+    reintentar_fondeos_cruzados(estado_cuenta, usuario)
+    return resumen
 
 
 def _to_decimal(texto):
