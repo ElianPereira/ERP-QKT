@@ -48,6 +48,15 @@ from .models import (
     TestimonioLanding,
 )
 from .paynet import TIENDAS_PAYNET
+from .services_consentimiento import (
+    FINALIDAD_MARKETING,
+    FINALIDAD_USO_IMAGEN,
+    registrar_desde_portal,
+    tiene_aceptacion_vigente,
+)
+
+MENSAJE_ACEPTAR_PRIMERO = ('Para continuar, primero acepta el Aviso de Privacidad en el portal de tu '
+                           'reservación. Es un solo toque.')
 
 
 def landing_publico(request):
@@ -234,7 +243,8 @@ def portal_evento(request, token):
             ref['es_deposito'] = True
             pagos_pendientes_openpay.append(ref)
     openpay_habilitado = bool(settings.OPENPAY_PAGOS_ID and settings.OPENPAY_PAGOS_API_KEY_PUBLICA)
-    puede_pagar_en_linea = openpay_habilitado and admite_pago and (
+    consentimiento_pendiente = not tiene_aceptacion_vigente(cliente)
+    puede_pagar_en_linea = openpay_habilitado and admite_pago and not consentimiento_pendiente and (
         saldo_pendiente > 0 or deposito_por_pagar > 0
     )
 
@@ -256,6 +266,8 @@ def portal_evento(request, token):
         'deposito': deposito,
         'deposito_por_pagar': deposito_por_pagar,
         'puede_pagar_en_linea': puede_pagar_en_linea,
+        'consentimiento_pendiente': consentimiento_pendiente,
+        'consentimiento_error': request.GET.get('privacidad') == 'falta',
         # Checkout Openpay (solo si hay credenciales configuradas)
         'openpay_habilitado': openpay_habilitado,
         'openpay_merchant_id': settings.OPENPAY_PAGOS_ID,
@@ -281,6 +293,23 @@ def portal_evento(request, token):
     }
 
     return render(request, 'portal/evento.html', context)
+
+
+@_rate_limit(key='portal_aceptar_privacidad', limit=10, window=60)
+@require_POST
+def portal_aceptar_privacidad(request, token):
+    """Aceptación del Aviso de Privacidad desde el portal (Issue #506). Es evidencia del
+    propio cliente: IP y navegador, origen PORTAL_CLIENTE, mismas casillas del cotizador."""
+    portal = _portal_vigente_o_404(token)
+    cliente = portal.cotizacion.cliente
+    destino = redirect('portal_evento', token=portal.token)
+    if request.POST.get('acepta_legales') != 'si':
+        destino['Location'] += '?privacidad=falta'
+        return destino
+    if not tiene_aceptacion_vigente(cliente):
+        permitidas = {FINALIDAD_MARKETING, FINALIDAD_USO_IMAGEN}
+        registrar_desde_portal(request, cliente, [f for f in request.POST.getlist('finalidades') if f in permitidas])
+    return destino
 
 
 @_rate_limit(key='portal_descargar_cotizacion', limit=10, window=60)
@@ -338,7 +367,9 @@ def portal_firmar_contrato(request, token):
         raise Http404("No hay contrato disponible.")
 
     error = aviso = None
-    if request.method == 'POST':
+    if request.method == 'POST' and not tiene_aceptacion_vigente(cotizacion.cliente):
+        error = MENSAJE_ACEPTAR_PRIMERO
+    elif request.method == 'POST':
         accion = request.POST.get('accion')
         try:
             if accion == 'codigo':
@@ -515,7 +546,9 @@ def portal_solicitar_cancelacion(request, token):
     error = aviso = None
     abierta = SolicitudCancelacion.objects.filter(
         cotizacion=cotizacion, estado__in=SolicitudCancelacion.ESTADOS_ABIERTOS).first()
-    if request.method == 'POST':
+    if request.method == 'POST' and not tiene_aceptacion_vigente(cotizacion.cliente):
+        error = MENSAJE_ACEPTAR_PRIMERO
+    elif request.method == 'POST':
         accion = request.POST.get('accion')
         try:
             if accion == 'iniciar':

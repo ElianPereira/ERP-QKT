@@ -397,6 +397,9 @@ ERP_KOOXI_SEGUIMIENTO_DIAS = env('ERP_KOOXI_SEGUIMIENTO_DIAS', default=3, cast=i
 # Post-venta (Fase 3, Issue #434). Sin plantilla, el comando correspondiente no manda nada.
 # Encuesta: 1 día después del servicio. Reactivación: aniversario del evento (MARKETING).
 META_WA_PLANTILLA_ENCUESTA = env('META_WA_PLANTILLA_ENCUESTA', default='')
+# Solicitud de autorización del Aviso de Privacidad a quien reservó o pagó sin aceptarlo (Issue #506).
+# Vacía = solo se manda dentro de la ventana de 24 h; sin ventana se reintenta al día siguiente.
+META_WA_PLANTILLA_CONSENTIMIENTO = env('META_WA_PLANTILLA_CONSENTIMIENTO', default='')
 META_WA_PLANTILLA_REACTIVACION = env('META_WA_PLANTILLA_REACTIVACION', default='')
 # Aviso al cliente que ganó un beneficio por recomendar (marketing, fase 7), fuera de la ventana de 24 h.
 META_WA_PLANTILLA_REFERIDO = env('META_WA_PLANTILLA_REFERIDO', default='')
