@@ -20,7 +20,7 @@ STORAGE = {
     'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
     'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
 }
-CLAVE = 'clave-de-prueba-123'
+CLAVE = 'x' * 20
 
 
 def crear_vendedora(nombre='Ana', telefono='9991234567', username='ana'):

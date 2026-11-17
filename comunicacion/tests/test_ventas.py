@@ -23,6 +23,7 @@ from .test_agente import AGENTE
 from .test_fase_2a import OK, TEL_DIR, TEL_ENC, TEL_OTRO, MocksVisitas, _dt, _proximo
 from .utils import TEL_CLIENTE, wa_settings
 
+CLAVE = 'x' * 20
 TEL_VENTAS = '525555550015'
 
 
@@ -290,10 +291,10 @@ class AltaManualTest(MocksVisitas, TestCase):
         super().setUp()
         call_command('crear_grupos_permisos', verbosity=0)
         self.ana = con_ventas()
-        self.usuario = User.objects.create_user('ana', password='clave-de-prueba-123', is_staff=True)
+        self.usuario = User.objects.create_user('ana', password=CLAVE, is_staff=True)
         Empleado.objects.filter(pk=self.ana.pk).update(usuario=self.usuario)
         self.usuario.groups.add(Group.objects.get(name='Vendedor'))
-        self.su = User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123')
+        self.su = User.objects.create_superuser('dir', 'd@x.mx', CLAVE)
 
     def _visita(self, hora=time(16, 0), dia=None, telefono=TEL_OTRO, nombre='Visitante'):
         return Visita(nombre=nombre, telefono=telefono, inicio=_dt(dia or self.dia, hora))
@@ -355,7 +356,7 @@ class AltaManualTest(MocksVisitas, TestCase):
         url = reverse('admin:comunicacion_visita_add')
         self.client.force_login(self.usuario)
         self.assertEqual(self.client.get(url).status_code, 200)
-        otro = User.objects.create_user('com', password='clave-de-prueba-123', is_staff=True)
+        otro = User.objects.create_user('com', password=CLAVE, is_staff=True)
         otro.groups.add(Group.objects.get(name='Ventas'))
         self.client.force_login(otro)
         self.assertEqual(self.client.get(url).status_code, 403)
@@ -458,7 +459,7 @@ class CierreDeVisitaTest(MocksVisitas, TestCase):
         self.assertEqual(self.visita.resultado, '')
 
     def test_acciones_del_admin(self):
-        su = User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123')
+        su = User.objects.create_superuser('dir', 'd@x.mx', CLAVE)
         from core_erp.test_utils import login_superuser_con_totp
         login_superuser_con_totp(self.client, su)
         self.client.post(reverse('admin:comunicacion_visita_changelist'),

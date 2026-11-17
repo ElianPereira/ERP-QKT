@@ -18,6 +18,7 @@ from core_erp.test_utils import login_superuser_con_totp
 from nomina import services_documentos, services_expediente, validadores
 from nomina.models import CondicionesPago, DocumentoEmpleado, Empleado, EscalonComision
 
+CLAVE = 'x' * 20
 PNG = b'\x89PNG\r\n\x1a\n' + b'0' * 32
 STORAGE_MEMORIA = {
     'default': {'BACKEND': 'django.core.files.storage.InMemoryStorage'},
@@ -132,7 +133,7 @@ class ExpedienteFaltantesTest(TestCase):
 class CandadoUsuarioTest(TestCase):
 
     def setUp(self):
-        self.user = User.objects.create_user('ana', password='clave-de-prueba-123')
+        self.user = User.objects.create_user('ana', password=CLAVE)
 
     def test_sin_acuerdo_no_hay_usuario(self):
         e = empleado_ventas()
@@ -323,7 +324,7 @@ class PermisosExpedienteTest(TestCase):
         self.e = empleado_ventas(curp='HEGG560427MVZRRL04', clabe='012910004895703146')
         self.doc = DocumentoEmpleado.objects.create(empleado=self.e, tipo='INE_FRENTE',
                                                     archivo=ContentFile(PNG, name='ine.png'))
-        self.nomina = User.objects.create_user('nom', password='clave-de-prueba-123', is_staff=True)
+        self.nomina = User.objects.create_user('nom', password=CLAVE, is_staff=True)
         permisos = Permission.objects.filter(content_type__app_label='nomina')
         self.nomina.user_permissions.set(permisos.exclude(codename='ver_expediente_empleado'))
         self.url = reverse('admin:nomina_empleado_change', args=[self.e.pk])
@@ -374,7 +375,7 @@ class PermisosExpedienteTest(TestCase):
         self.assertEqual(self.client.get(reverse('admin:nomina_condicionespago_propuesta', args=[c.pk])).status_code, 404)
 
     def test_superusuario_genera_los_dos_pdf(self):
-        su = User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123')
+        su = User.objects.create_superuser('dir', 'd@x.mx', CLAVE)
         login_superuser_con_totp(self.client, su)
         r = self.client.get(reverse('admin:nomina_empleado_acuerdo', args=[self.e.pk]))
         self.assertEqual(r['Content-Type'], 'application/pdf')
@@ -383,7 +384,7 @@ class PermisosExpedienteTest(TestCase):
         self.assertEqual(r['Content-Type'], 'application/pdf')
 
     def test_acuerdo_incompleto_redirige_con_aviso(self):
-        su = User.objects.create_superuser('dir', 'd@x.mx', 'clave-de-prueba-123')
+        su = User.objects.create_superuser('dir', 'd@x.mx', CLAVE)
         login_superuser_con_totp(self.client, su)
         vacio = Empleado.objects.create(nombre='Vacía', puesto='VENTAS')
         r = self.client.get(reverse('admin:nomina_empleado_acuerdo', args=[vacio.pk]))
