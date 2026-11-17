@@ -793,7 +793,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                        'identificacion_revisada_por', 'identificacion_revisada_en', 'enviar_email_btn'),
         }),
     )
-    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por', 'comision_ventas')
 
     # Costos y márgenes que el grupo Vendedor no ve (Issue #505).
     CAMPOS_DE_COSTO = ('factor_utilidad_barra', 'resumen_barra_html')
@@ -801,6 +801,8 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     def get_fieldsets(self, request, obj=None):
         conjuntos = super().get_fieldsets(request, obj)
+        if request.user.is_superuser and obj is not None and obj.vendedor_id:
+            conjuntos = [*conjuntos, ('Comisión de ventas', {'fields': ('comision_ventas',)})]
         if not es_vendedor(request.user):
             return conjuntos
         return [(titulo, {**opc, 'fields': tuple(c for c in opc['fields'] if c not in self.CAMPOS_DE_COSTO)})
@@ -813,6 +815,17 @@ class CotizacionAdmin(admin.ModelAdmin):
         if not request.user.is_superuser:
             acciones.pop('asignar_vendedor', None)
         return acciones
+
+    @admin.display(description='Comisión')
+    def comision_ventas(self, obj):
+        c = getattr(obj, 'comision_contratacion', None)
+        if c is None:
+            return ui.vacio()
+        return format_html(
+            '<div class="qkt-datos">Contratación n.º {} de {} · fijo {} + extras {} (base {}) = <strong>{}</strong>'
+            '<br>Devengado {} · por devengar {}</div>',
+            c.numero_en_periodo, c.anio, ui.monto(c.monto_fijo), ui.monto(c.monto_extras),
+            ui.monto(c.base_extras), ui.monto(c.total), ui.monto(c.devengado), ui.monto(c.por_devengar))
 
     @admin.display(description='Atendido por')
     def atendido_por(self, obj):

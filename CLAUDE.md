@@ -140,7 +140,8 @@ pre-commit · CI en GitHub Actions.
 - `marketing/` — prospectos (`Lead`, embudo derivado de mensajes/visitas/cotizaciones), motivos de pérdida y
   retención, pauta de Meta y Google Ads, KPIs, decisiones, conversiones, referidos; solo superusuario (Issue #468).
 - `ventas/` — personal de ventas (Issue #505): atribución de cotizaciones al vendedor (`services_atribucion`), grupo
-  `Vendedor` y sus candados (`permisos.py`); el motor de comisiones, cortes y tablero llegan en los PR 3–5.
+  `Vendedor` y sus candados (`permisos.py`), motor de comisiones (`services_comisiones`), cortes y pago
+  (`services_cortes`) y control del efectivo (`services_efectivo`); el tablero «Ventas» y «Mis comisiones» llegan en el PR 5.
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
@@ -280,6 +281,47 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+
+- 2026-11-17 — **Personal de ventas, fase 2 (PR 3 + PR 4 del Issue #505)** (rama `claude/ventas-505-fase2`; **mueve dinero y
+  contabilidad**: revisión del propietario antes del merge; sin zonas restringidas; migraciones aditivas `ventas.0001`, `ventas.0002`,
+  `contabilidad.0046`). **PR 3 (motor, `ventas/services_comisiones.py`)**: `ComisionContratacion` (una por cotización, valores
+  **sellados** de las Condiciones vigentes ese día: monto fijo del escalón, porcentaje de extras y `precio_final`), `MovimientoComision`
+  (inmutable: `save()` de un existente, `delete()` y `update()` de cualquier campo que no sea `corte` lanzan `PermissionDenied`; se
+  corrige con otro contrario), `EventoVenta` (bitácora que solo se agrega). `asegurar_comision` crea la comisión al quedar CONFIRMADA
+  (o posterior) con vendedor en servicio, no histórica y precio > 0; **sin Condiciones aceptadas vigentes no crea nada** (opción
+  conservadora) y deja un `Pendiente` a Dirección. El número del año = contrataciones del vendedor ese año **sin contar las canceladas
+  con devolución total** + 1, por eso **no hay restricción única** sobre el número (la siguiente puede repetir el de una anterior
+  que dejó de contar). `sincronizar` emite la diferencia entre el devengado objetivo (`centavos(total × min(1, cobrado/precio
+  sellado))`) y el acumulado, bajo `select_for_update` del Empleado y con clave `com:<id>:<n>` única; el cobrado es
+  `pagado_para_comision` (**no usa `total_pagado_neto()`**: excluye condonaciones, que sí suma aquel). Base de extras = items sin
+  rol base/paquete/`fijo_por_evento`, neta de descuento proporcional. **Baja**: nada se devenga con fecha posterior; el cobrado solo
+  cuenta pagos con `fecha_pago ≤ fecha_baja` (un cron tardío igual devenga lo anterior), el total y el precio quedan congelados y
+  el movimiento se fecha en la baja. `devengar_visitas` recalcula la semana lunes–domingo: las primeras `tope_visitas_semana`
+  (por `inicio`) pagan `pago_visita` de las Condiciones, las demás un movimiento de $0.00 «Sobre el tope semanal»; una visita que
+  pasa a «No llegó» se revierte y libera el tope de otra. `absorber` (solo superusuario, motivo obligatorio) emite un AJUSTE positivo
+  marcado `absorcion=True` que cancela saldo en contra **sin pagarse**. Disparadores en `ventas/signals.py` (`on_commit` + `try/except`:
+  `Pago`, `Cotizacion`, `ItemCotizacion`, `Visita` cerrada) y respaldo diario `sincronizar_comisiones` (06:30, programador). Panel
+  «Comisión» en la cotización solo para superusuario. **PR 4 (`ventas/services_cortes.py`)**: `CorteComision` (visitas: domingo 08:20,
+  semana lunes–domingo, se paga ese domingo; comisiones: días 16 y 1 a las 08:20, periodos 1–15 y 16–fin de mes, se pagan el domingo
+  siguiente; `periodicidad` MENSUAL solo corta el día 1 y SEMANAL se trata como quincenal). Un corte toma **todo movimiento aún sin
+  corte con fecha ≤ `hasta`** (una visita del domingo cerrada después del corte cae en el siguiente) y es idempotente por (vendedor,
+  tipo, desde, hasta). Compensación: `descuento = min(saldo, centavos(positivo × tope_compensacion))` con el saldo = arrastre del
+  último corte + revertido − absorbido; un corte de visitas se compensa por completo; **nunca queda negativo** y con total $0.00 se
+  cierra solo (PAGADO sin póliza ni aviso); con baja ≤ `hasta` el saldo restante se absorbe. BORRADOR → pendiente URGENTE a Dirección
+  con botón `cor:<id>:ok` (`services_direccion`, solo el teléfono activo de DIRECCION); aprobar **no paga**; pagar es solo
+  superusuario (pantalla propia con método/cuenta/referencia), genera el PDF «Estado de comisiones» (`QKT_Comisiones_…`, privado,
+  `ARCHIVOS_PROTEGIDOS`) y avisa por WhatsApp y correo. **Póliza** (`contabilidad/signals.py`, no `services.py`): al quedar PAGADO,
+  egreso fechado ese día DEBE `COMISIONES_VENTA` (subcuenta nueva **601.05.05**, `get_or_create` en `contabilidad.0046`) / HABER Caja
+  (efectivo) o la cuenta elegida (vacía = `CuentaBancaria.pagadora`); idempotente por corte, $0.00 no genera, y **si no puede
+  asentarse el pago se revierte** (nunca dinero sin rastro); `cancelar_pago` regresa a APROBADO y cancela la póliza (no la borra). La
+  conciliación no necesitó cambios: `_emparejar_automaticamente` ya empareja por cuenta bancaria, monto y ±5 días, y la línea de
+  bancos de la póliza lo cumple (probado). `EntregaEfectivo` (`services_efectivo`): efectivo que ella registró (`Pago.usuario`) aún no
+  entregado; Dirección registra qué cobros cubre (el monto es su suma, la validación bloquea las filas); sin póliza y **ninguna
+  función compensa comisiones contra efectivo** (un test lo fija). Admin de cortes/entregas solo para superusuario (ningún grupo recibe
+  permisos). **Pendiente del propietario**: aplicar/revisar con el contador el trato de 601.05.05; dar de alta `Responsable` DIRECCION
+  con teléfono para los botones; definir qué hacer con `periodicidad` distinta de quincenal si algún día se usa. **No es de este PR**:
+  tablero «Ventas», «Mis comisiones», reportes y la integración con Indicadores/Marketing (PR 5); los servicios de lectura listos son
+  `saldo_en_contra`, `filas_del_corte`, `fecha_pago_programada` y `efectivo.saldos_pendientes`.
 
 - 2026-11-17 — **Personal de ventas, fase 1 (PR 1A + 1B + 2 del Issue #505)** (una rama, `claude/ventas-505-fase1`, commits con
   prefijo `1A:`/`1B:`/`2:`; **no mueve dinero todavía**: el motor de comisiones es el PR 3; sin zonas restringidas; migraciones

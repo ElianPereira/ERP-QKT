@@ -1,0 +1,54 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos qkt_horarios %}
+{% comment %}
+Estado de comisiones de un corte (Issue #505, PR 4). Solo cifras del registro: ningún monto vive aquí.
+{% endcomment %}
+
+{% block variante %}operativo{% endblock %}
+{% block subtitulo %}Estado de {{ corte.get_tipo_display|lower }}{% endblock %}
+{% block filtros %}
+<span><b>Para:</b> {{ vendedor.nombre_para_documentos }}</span>
+<span><b>Periodo:</b> {{ corte.desde|date:"d/m/Y" }} al {{ corte.hasta|date:"d/m/Y" }}</span>
+<span><b>Pago programado:</b> {{ fecha_pago|date:"d/m/Y" }}</span>
+{% endblock %}
+{% block generado %}<span><b>Emisión:</b> {{ doc_generado_en|date:"d/m/Y" }}</span>{% endblock %}
+
+{% block contenido %}
+<table class="doc-tabla">
+  <thead>
+    <tr>
+      <th class="col-fecha">Fecha</th>
+      <th>Concepto</th>
+      <th>Detalle</th>
+      <th class="num">Monto</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for fila in filas %}
+    <tr>
+      <td>{{ fila.fecha|date:"d/m/Y" }}</td>
+      <td>{{ fila.concepto }}{% if fila.manual %} {% badge_doc "Manual" "alerta" %}{% endif %}</td>
+      <td>{{ fila.detalle }}</td>
+      <td class="num{% if fila.monto < 0 %} texto-error{% endif %}">{{ fila.monto|moneda }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4" class="vacio">Sin movimientos en el periodo.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<div class="doc-totales">
+  <table>
+    <tr><td>Devengado del periodo</td><td class="num">{{ corte.bruto|moneda }}</td></tr>
+    {% if corte.compensado %}<tr class="resta"><td>Compensación de saldo en contra</td><td class="num">-{{ corte.compensado|moneda }}</td></tr>{% endif %}
+    <tr class="gran-total"><td>Total a pagar</td><td class="num">{{ corte.total|moneda }}</td></tr>
+    {% if corte.saldo_arrastrado %}<tr><td colspan="2" class="doc-totales-nota">Saldo en contra que se compensa en cortes siguientes: {{ corte.saldo_arrastrado|moneda }}.</td></tr>{% endif %}
+    {% if corte.absorbido %}<tr><td colspan="2" class="doc-totales-nota">Saldo en contra absorbido por la Quinta: {{ corte.absorbido|moneda }}.</td></tr>{% endif %}
+  </table>
+</div>
+
+<div class="doc-aviso doc-aviso--info">
+  Nunca se te pide dinero: lo revertido por una cancelación se compensa solo contra comisiones futuras
+  y con un máximo por corte. El pago por visita atendida no se revierte.
+</div>
+{% endblock %}

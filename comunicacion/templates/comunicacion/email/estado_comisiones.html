@@ -1,0 +1,9 @@
+{% extends "comunicacion/email/base.html" %}
+{% block content %}
+<h2 style="color:#F5C518;margin-top:0;">Tu estado de {{ corte.get_tipo_display|lower }}</h2>
+
+<p>Hola {{ vendedor.nombre }}, ya quedó pagado tu corte del {{ corte.desde|date:"d/m/Y" }} al {{ corte.hasta|date:"d/m/Y" }}
+por <strong>${{ corte.total }}</strong>.</p>
+
+<p>Va adjunto el detalle en PDF.</p>
+{% endblock %}

@@ -19,6 +19,7 @@ from django.contrib.auth.models import User
 from django.contrib.contenttypes.models import ContentType
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from core_erp import impuestos
 
@@ -1024,3 +1025,67 @@ def emitir_poliza_compra(compra):
         )
     return poliza
 
+
+
+# ==========================================
+# PAGO DE UN CORTE DE COMISIONES (ventas.CorteComision, Issue #505)
+# ==========================================
+def _cuenta_de_pago_de_corte(corte):
+    """Caja si se pagó en efectivo; si no, la cuenta bancaria elegida o la pagadora de la Quinta."""
+    from .models import CuentaBancaria
+
+    if corte.metodo == 'EFECTIVO':
+        return get_cuenta('CAJA')
+    cuenta_bancaria = corte.cuenta_bancaria
+    if cuenta_bancaria is None:
+        unidad = get_unidad_negocio('QUINTA')
+        cuenta_bancaria = CuentaBancaria.pagadora(unidad.pk) if unidad else None
+    if cuenta_bancaria is not None and cuenta_bancaria.cuenta_contable_id:
+        return cuenta_bancaria.cuenta_contable
+    return None
+
+
+def poliza_de_corte(corte, estado='APLICADA'):
+    return Poliza.objects.filter(
+        content_type=ContentType.objects.get_for_model(corte), object_id=corte.pk,
+        origen='COMISION_VENTAS', estado=estado).first()
+
+
+@receiver(post_save, sender='ventas.CorteComision')
+def sincronizar_poliza_corte_comision(sender, instance, **kwargs):
+    """Al quedar PAGADO: egreso fechado ese día, DEBE `COMISIONES_VENTA` (gasto no deducible) /
+    HABER Caja o banco. Idempotente por corte; $0.00 no genera póliza. Si el pago se cancela
+    (el corte deja de estar PAGADO) la póliza se cancela, nunca se borra."""
+    if not signals_enabled():
+        return
+    corte = instance
+    existente = poliza_de_corte(corte)
+    if corte.estado != 'PAGADO':
+        if existente is not None:
+            existente.cancelar(get_usuario_sistema(), f'Se canceló el pago del corte #{corte.pk}')
+        return
+    monto = Decimal(str(corte.total))
+    if monto <= 0 or existente is not None:
+        return
+    cuenta_gasto = get_cuenta('COMISIONES_VENTA')
+    cuenta_pago = _cuenta_de_pago_de_corte(corte)
+    unidad = get_unidad_negocio('QUINTA')
+    if not (cuenta_gasto and cuenta_pago and unidad):
+        logger.warning("Póliza NO generada para el corte de comisiones #%s: falta configuración contable.",
+                       corte.pk)
+        return
+    fecha = timezone.localtime(corte.pagado_en).date() if corte.pagado_en else timezone.localdate()
+    referencia = corte.referencia or f'CORTE-{corte.pk}'
+    poliza = Poliza.objects.create(
+        tipo='E', folio=Poliza.siguiente_folio('E', fecha), fecha=fecha,
+        concepto=(f'Comisiones y pagos a ventas: {corte.vendedor.nombre} '
+                  f'({corte.get_tipo_display()} {corte.desde:%d/%m/%Y}–{corte.hasta:%d/%m/%Y})'),
+        unidad_negocio=unidad, estado='APLICADA', origen='COMISION_VENTAS',
+        content_type=ContentType.objects.get_for_model(corte), object_id=corte.pk,
+        created_by=corte.pagado_por or get_usuario_sistema())
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_gasto, debe=monto, haber=Decimal('0.00'),
+        concepto=f'{corte.get_tipo_display()} {corte.vendedor.nombre}', referencia=referencia)
+    MovimientoContable.objects.create(
+        poliza=poliza, cuenta=cuenta_pago, debe=Decimal('0.00'), haber=monto,
+        concepto=f'Pago {corte.get_metodo_display().lower() or "de corte"}', referencia=referencia)
