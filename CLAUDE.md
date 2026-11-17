@@ -121,7 +121,7 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing ventas` |
+| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing ventas manual` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
@@ -141,6 +141,9 @@ pre-commit · CI en GitHub Actions.
   retención, pauta de Meta y Google Ads, KPIs, decisiones, conversiones, referidos; solo superusuario (Issue #468).
 - `ventas/` — personal de ventas (Issue #505): atribución de cotizaciones al vendedor (`services_atribucion`), grupo
   `Vendedor` y sus candados (`permisos.py`); el motor de comisiones, cortes y tablero llegan en los PR 3–5.
+- `manual/` — manual de procedimientos por rol (Issue #507): secciones Markdown en `manual/secciones/`, vista
+  `/admin/manual/`, PDF por rol, capturas automáticas. **Regla permanente**: un PR que cambie una pantalla o flujo
+  que el manual describe actualiza su sección y corre `python manage.py generar_capturas_manual` en el mismo PR.
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
@@ -370,6 +373,22 @@ salvo que queden obsoletas.
   `hide_models`; mixin `CambiarCuentaBancariaMixin` compartido con Pagos) y documentación en `PROJECT_CONTEXT.md`. **Pendiente**: cuando
   llegue el primer PDF real de la Pagadora (1–2 de diciembre) añadir su texto exacto a `FondeoTraspasoCuentasPropiasTest` y ajustar
   `TEXTO_FONDEO` si difiere. El parser de BBVA no se tocó; no se pudo comprobar el formato contra un PDF real.
+
+- 2026-11-17 — **Manual de procedimientos por rol, M1: infraestructura** (Issue #507; sin zonas restringidas; migración
+  `manual.0001`, una tabla nueva `DescargaManual`). App `manual/`: secciones en `manual/secciones/NN_nombre.md` con cabecera
+  (`titulo/capitulo/orden/roles`), bloques `:::rol X`, `:::correcto|nohagas|quehacer|nota`, valores del negocio con
+  `{{ dias_pago_total.EVENTO }}` (`services.contexto_negocio`, nunca escritos a mano). **Rol derivado del usuario, nunca de la
+  URL** (`roles_de`): superusuario todo; grupo `Vendedor`→VENTAS (lo crea la app `ventas`, #505), `Ventas`→ENCARGADO,
+  `Contabilidad`→CONTADOR; otro staff solo TODOS. Sección fuera de tu rol = 404 igual que inexistente. **`[CONFIRMAR:]` = borrador**:
+  solo el superusuario la ve; el PDF «Completo» del superusuario la incluye marcada, el de un rol nunca. PDF
+  (`core_erp/documentos.py`, `manual/pdf_manual.html`): portada, índice con páginas, pie con versión y «Descargado por»; un usuario
+  normal siempre recibe el suyo (`?rol=` solo lo respeta un superusuario). Bitácora `DescargaManual` (solo superusuario).
+  `generar_capturas_manual [--solo n]` levanta una base temporal con `manual/demo.py` (datos inventados) y fotografía
+  `manual/capturas.py` con Playwright a `static/manual/img/*.webp`; **solo corre con SQLite local** (el corredor crea una base
+  de pruebas, contra Postgres sería una base `test_` en ese servidor). Hallazgos al fotografiar: el botón se llama «Agregar Pago
+  Aprobado», el formulario de pago tiene pestañas y «Correos» es solo Dirección (el contador no lo ve): el texto se corrigió contra
+  la pantalla real, no contra el código. Playwright de Python no viene en `requirements.lock` (como `test_movil`): `pip install
+  playwright`. Tres secciones de muestra (TODOS, ENCARGADO, CONTADOR); dos quedan en borrador por sus `[CONFIRMAR:]`.
 
 - 2026-11-16 — **Segunda cuenta BBVA, PR 3 de 3: cambio manual de cuenta y pauta con dos cuentas** (Issue #499; **mueve contabilidad**:
   revisión del propietario; apilado sobre el PR 2; sin zonas restringidas; **sin migración**). `services_cuenta_bancaria.cambiar_cuenta_bancaria

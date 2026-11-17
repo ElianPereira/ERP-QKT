@@ -30,6 +30,8 @@ PLANTILLAS_MIGRADAS = sorted(
         _BASE / 'comercial' / 'templates' / 'pdf_lista_compras.html',
         _BASE / 'comercial' / 'templates' / 'comercial' / 'pdf_ficha_producto.html',
         _BASE / 'comercial' / 'templates' / 'comercial' / 'pdf' / 'evidencia_contracargo.html',
+        # Manual de procedimientos (Issue #507).
+        _BASE / 'manual' / 'templates' / 'manual' / 'pdf_manual.html',
         # Fase 4: contratos (solo estilos; el texto no cambia).
         _BASE / 'comercial' / 'templates' / 'contratos' / 'propio' / 'contrato.html',
         _BASE / 'comercial' / 'templates' / 'contratos' / 'contrato_pdf.html',

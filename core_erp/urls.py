@@ -189,6 +189,7 @@ urlpatterns = [
 
     # --- MÓDULO INDICADORES (solo Dirección) ---
     path('admin/indicadores/', include('indicadores.urls')),
+    path('admin/manual/', include('manual.urls')),
 
     # --- MÓDULO MARKETING (solo Dirección) ---
     path('admin/marketing/', include('marketing.urls')),

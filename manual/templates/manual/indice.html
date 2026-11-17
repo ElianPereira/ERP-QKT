@@ -1,0 +1,59 @@
+{% extends "admin/base_site.html" %}
+{% load manual_tags %}
+{% block content %}
+<div class="qkt-pagina qkt-pagina--angosta">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-book-open" aria-hidden="true"></i> Manual</h1>
+        <p class="qkt-pagina__intro">Cómo se hace cada cosa en la Quinta y en el sistema. Aquí solo aparece lo que corresponde a tu puesto.</p>
+    </div>
+
+    <div class="manual-barra">
+        <form method="get" class="manual-buscador" role="search">
+            <label class="sr-only" for="manual-q">Buscar en el manual</label>
+            <input type="search" id="manual-q" name="q" value="{{ consulta }}" placeholder="Buscar: cobro, factura, visita…" autocomplete="off">
+            <button type="submit" class="qkt-btn qkt-btn--secundario"><i class="fas fa-search" aria-hidden="true"></i> Buscar</button>
+        </form>
+        <form method="get" action="{% url 'manual:pdf' %}" class="manual-descarga">
+            {% if es_superusuario %}
+            <label class="sr-only" for="manual-rol">Manual a descargar</label>
+            <select id="manual-rol" name="rol">
+                {% for clave in selector_pdf %}<option value="{{ clave }}">{% if clave == 'COMPLETO' %}Completo{% else %}{{ etiquetas_rol|get_item:clave }}{% endif %}</option>{% endfor %}
+            </select>
+            {% endif %}
+            <button type="submit" class="qkt-btn qkt-btn--primario"><i class="fas fa-file-pdf" aria-hidden="true"></i> {% if es_superusuario %}Descargar PDF{% else %}Descargar mi manual{% endif %}</button>
+        </form>
+    </div>
+
+    {% if resultados is not None %}
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-search" aria-hidden="true"></i> Resultados para «{{ consulta }}»</h2></div>
+        <div class="qkt-panel__cuerpo">
+            {% for s, fragmento in resultados %}
+            <p class="manual-resultado">
+                <a href="{% url 'manual:seccion' s.slug %}"><strong>{{ s.titulo }}</strong></a>
+                <span class="qkt-campo__ayuda">{{ s.capitulo }}</span><br>
+                <span class="manual-fragmento">{{ fragmento }}</span>
+            </p>
+            {% empty %}
+            <p>No encontramos nada con esas palabras. Prueba con una sola, o revisa el índice.</p>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% for capitulo, secciones in capitulos %}
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo">{{ capitulo }}</h2></div>
+        <div class="qkt-panel__cuerpo">
+            <ul class="manual-lista">
+                {% for s in secciones %}
+                <li><a href="{% url 'manual:seccion' s.slug %}">{{ s.titulo }}</a>{% if s.borrador %} <span class="badge badge-warning">Borrador</span>{% endif %}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% empty %}
+    <div class="qkt-panel"><div class="qkt-panel__cuerpo"><p>Todavía no hay secciones del manual para tu puesto.</p></div></div>
+    {% endfor %}
+</div>
+{% endblock %}
