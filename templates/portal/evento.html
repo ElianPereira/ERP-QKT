@@ -132,7 +132,16 @@
             Estado: {{ cotizacion.get_estado_display }}
         </div>
         {% endwith %}
-        
+
+        {% if cotizacion.vendedor and wa_numero %}
+        <div class="card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div><i class="fas fa-user-circle"></i> Tu asesora: <strong>{{ cotizacion.vendedor.nombre }}</strong></div>
+            <a href="https://wa.me/{{ wa_numero }}?text=Hola%2C%20hablo%20sobre%20mi%20evento%20COT-{{ cotizacion.id|stringformat:'03d' }}" class="btn btn-wa" target="_blank" rel="noopener">
+                <i class="fab fa-whatsapp"></i> Escribir por WhatsApp
+            </a>
+        </div>
+        {% endif %}
+
         <!-- KPIs -->
         <div class="card">
             <div class="kpi-grid">

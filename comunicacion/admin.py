@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib import admin, messages
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
+from django.shortcuts import redirect
 from django.template.response import TemplateResponse
 from django.urls import path
 from django.utils import timezone
@@ -10,6 +11,7 @@ from core_erp import admin_ui as ui
 from core_erp.admin_filtros import con_titulo
 from core_erp.admin_utils import confirmar_accion_destructiva
 from core_erp.descargas import url_descarga
+from ventas.permisos import es_vendedor
 
 from . import (
     services_agente,
@@ -582,26 +584,80 @@ class HorarioVisitaAdmin(admin.ModelAdmin):
         super().save_model(request, obj, form, change)
 
 
+def _form_visita_manual(request):
+    """Formulario del alta manual: valida con las mismas reglas que Kooxi (bloques de visita, unicidad)."""
+    class VisitaManualForm(forms.ModelForm):
+        class Meta:
+            model = Visita
+            fields = ('nombre', 'telefono', 'personas', 'inicio')
+
+        def clean(self):
+            datos = super().clean()
+            if all(datos.get(c) for c in ('nombre', 'telefono', 'inicio')):
+                temporal = Visita(nombre=datos['nombre'], telefono=datos['telefono'], inicio=datos['inicio'])
+                try:
+                    self.advertencias = services_visitas.validar_manual(temporal, request.user)
+                except ValidationError as e:
+                    raise forms.ValidationError(e.messages) from None
+            return datos
+    return VisitaManualForm
+
+
 @admin.register(Visita)
 class VisitaAdmin(admin.ModelAdmin):
-    """Visitas que Kooxi agenda. Nacen por confirmar y solo una persona las
-    confirma (aquí o con el botón de WhatsApp)."""
+    """Visitas a la Quinta: las agenda Kooxi (nacen por confirmar) o las da de alta Ventas a mano. Solo una
+    persona las confirma (aquí o con el botón de WhatsApp) y, pasada la cita, Ventas las cierra."""
     TONOS_ESTADO = {'POR_CONFIRMAR': ui.ALERTA, 'CONFIRMADA': ui.EXITO, 'RECHAZADA': ui.ERROR,
                     'CANCELADA': ui.NEUTRO}
-    list_display = ('cuando', 'nombre', 'telefono', 'personas', 'estado_badge', 'decidida_por')
-    list_filter = ('estado', 'inicio')
+    TONOS_RESULTADO = {'ATENDIDA': ui.EXITO, 'NO_LLEGO': ui.ERROR}
+    list_display = ('cuando', 'nombre', 'telefono', 'personas', 'estado_badge', 'resultado_badge', 'vendedor',
+                    'origen_badge')
+    list_filter = (('estado', con_titulo('Estado')), ('resultado', con_titulo('Resultado')),
+                   ('origen', con_titulo('Origen')), 'inicio')
     search_fields = ('nombre', 'telefono')
-    fields = ('nombre', 'telefono', 'personas', 'inicio', 'estado', 'cliente', 'conversacion', 'decidida_en',
-              'decidida_por', 'recordatorio_en')
+    list_select_related = ('vendedor',)
+    fields = ('nombre', 'telefono', 'personas', 'inicio', 'estado', 'resultado', 'vendedor', 'origen', 'cliente',
+              'conversacion', 'decidida_en', 'decidida_por', 'atendida_en', 'atendida_por', 'recordatorio_en')
     readonly_fields = fields
     columnas_texto = ('nombre',)
-    actions = ('confirmar_visitas', 'marcar_no_disponible', 'cancelar_visitas')
+    actions = ('confirmar_visitas', 'marcar_no_disponible', 'cancelar_visitas', 'marcar_atendida', 'marcar_no_llego')
 
     def has_add_permission(self, request):
-        return False
+        # Alta manual: solo Ventas y Dirección (no el resto del grupo de Comunicación).
+        return (request.user.is_superuser or es_vendedor(request.user)) and super().has_add_permission(request)
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+    def get_fields(self, request, obj=None):
+        return ('nombre', 'telefono', 'personas', 'inicio') if obj is None else self.fields
+
+    def get_readonly_fields(self, request, obj=None):
+        return () if obj is None else self.readonly_fields
+
+    def get_form(self, request, obj=None, **kwargs):
+        if obj is None:
+            kwargs['form'] = _form_visita_manual(request)
+        return super().get_form(request, obj, **kwargs)
+
+    def save_model(self, request, obj, form, change):
+        if change:
+            return super().save_model(request, obj, form, change)
+        try:
+            for aviso in services_visitas.registrar_manual(obj, request.user):
+                messages.warning(request, aviso)
+        except ValidationError as e:
+            messages.error(request, ' '.join(e.messages))
+
+    def log_addition(self, request, obj, message):
+        # Si el alta se rechazó en el último momento (horario recién ocupado) no hay registro que bitacorar.
+        if obj.pk:
+            return super().log_addition(request, obj, message)
+
+    def response_add(self, request, obj, post_url_continue=None):
+        if not obj.pk:
+            return redirect('admin:comunicacion_visita_changelist')
+        return super().response_add(request, obj, post_url_continue)
 
     @admin.display(description='Fecha y hora', ordering='inicio')
     def cuando(self, obj):
@@ -610,6 +666,16 @@ class VisitaAdmin(admin.ModelAdmin):
     @admin.display(description='Estado', ordering='estado')
     def estado_badge(self, obj):
         return ui.badge_por_valor(obj.estado, self.TONOS_ESTADO, obj.get_estado_display())
+
+    @admin.display(description='Resultado', ordering='resultado')
+    def resultado_badge(self, obj):
+        if not obj.resultado:
+            return ui.vacio()
+        return ui.badge_por_valor(obj.resultado, self.TONOS_RESULTADO, obj.get_resultado_display())
+
+    @admin.display(description='Origen', ordering='origen')
+    def origen_badge(self, obj):
+        return ui.badge(obj.get_origen_display(), ui.INFO if obj.origen == 'MANUAL' else ui.NEUTRO, categoria=True)
 
     def _decidir(self, request, queryset, aceptar):
         hechas = sum(1 for v in queryset if services_visitas.decidir(v.pk, aceptar, usuario=request.user))
@@ -629,6 +695,27 @@ class VisitaAdmin(admin.ModelAdmin):
     def cancelar_visitas(self, request, queryset):
         hechas = sum(1 for v in queryset if services_visitas.cancelar(v.pk, request.user))
         self.message_user(request, f'{hechas} visita(s) cancelada(s).')
+
+    def _cerrar(self, request, queryset, atendida):
+        hechas, motivos = 0, set()
+        for v in queryset:
+            respuesta = services_visitas.cerrar_visita(v.pk, atendida, usuario=request.user)
+            if respuesta and respuesta.startswith('✅'):
+                hechas += 1
+            elif respuesta:
+                motivos.add(respuesta)
+        for m in motivos:
+            self.message_user(request, m, messages.WARNING)
+        self.message_user(request, f'{hechas} visita(s) cerrada(s).',
+                          messages.SUCCESS if hechas else messages.WARNING)
+
+    @admin.action(description='Marcar como atendida')
+    def marcar_atendida(self, request, queryset):
+        self._cerrar(request, queryset, True)
+
+    @admin.action(description='Marcar que no llegó')
+    def marcar_no_llego(self, request, queryset):
+        self._cerrar(request, queryset, False)
 
 
 @admin.register(Hallazgo)

@@ -1,7 +1,7 @@
 """
 Cada 10 min (programador): el día de la visita confirmada, recuerda al cliente
 2 h antes y avisa al equipo 45 min antes, salvo que el cliente ya haya dicho que
-llegó. Cada aviso sale una sola vez.
+llegó. Cada aviso sale una sola vez. Pasada la cita, pregunta a Ventas si se presentó.
 
 Uso:
     python manage.py enviar_avisos_previos_visitas
@@ -16,4 +16,6 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         enviados = services_visitas.enviar_avisos_previos()
-        self.stdout.write(self.style.SUCCESS(f'Avisos previos de visita al equipo: {enviados}.'))
+        cierres = services_visitas.enviar_cierres()
+        self.stdout.write(self.style.SUCCESS(
+            f'Avisos previos de visita al equipo: {enviados}. Cierres preguntados a Ventas: {cierres}.'))

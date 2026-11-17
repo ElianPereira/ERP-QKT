@@ -94,6 +94,7 @@ INSTALLED_APPS = [
     'operaciones',
     'cumplimiento',
     'marketing',
+    'ventas',
     'django_otp',
     'django_otp.plugins.otp_totp',
 ]

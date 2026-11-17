@@ -45,10 +45,52 @@ EXCEPCIONES = {
 }
 
 
+# Grupos con lista explícita (app, modelo) -> verbos, sin recorrer apps completas (Issue #505).
+# Vendedor: personal de ventas con acceso mínimo. Nunca `delete`; sin Descuento, ConstanteSistema,
+# Compra, contabilidad, facturación, nómina, marketing, indicadores, cumplimiento ni reportes.
+# Los productos (y sus tres vistas por línea de negocio) solo en lectura; los costos y márgenes
+# los oculta el admin a este grupo (ventas.permisos.es_vendedor).
+GRUPOS_EXPLICITOS = {
+    'Vendedor': {
+        ('comercial', 'cliente'): ('view', 'add', 'change'),
+        ('comercial', 'cotizacion'): ('view', 'add', 'change'),
+        ('comercial', 'itemcotizacion'): ('view', 'add', 'change'),
+        ('comercial', 'pago'): ('view', 'add'),
+        ('comunicacion', 'visita'): ('view', 'add', 'change'),
+        ('comercial', 'producto'): ('view',),
+        ('comercial', 'productoeventos'): ('view',),
+        ('comercial', 'productopasadia'): ('view',),
+        ('comercial', 'productohospedaje'): ('view',),
+        ('comercial', 'bloqueofecha'): ('view',),
+        ('comunicacion', 'horariovisita'): ('view',),
+    },
+}
+
+
 class Command(BaseCommand):
-    help = "Crea los grupos Ventas/Contabilidad/Nómina y asigna sus permisos de modelo."
+    help = "Crea los grupos Ventas/Contabilidad/Nómina/Vendedor y asigna sus permisos de modelo."
+
+    def _permisos_explicitos(self, mapa):
+        permisos = []
+        for (app_label, model_name), verbos in mapa.items():
+            for verbo in verbos:
+                codename = f'{verbo}_{model_name}'
+                try:
+                    permisos.append(Permission.objects.get(
+                        content_type__app_label=app_label, content_type__model=model_name, codename=codename))
+                except Permission.DoesNotExist:
+                    self.stderr.write(self.style.WARNING(
+                        f'  Permiso {app_label}.{codename} no existe (¿migraciones al día?), se omite.'))
+        return permisos
 
     def handle(self, *args, **options):
+        for nombre_grupo, mapa in GRUPOS_EXPLICITOS.items():
+            grupo, creado = Group.objects.get_or_create(name=nombre_grupo)
+            permisos = self._permisos_explicitos(mapa)
+            grupo.permissions.set(permisos)
+            self.stdout.write(self.style.SUCCESS(
+                f'{"Creado" if creado else "Actualizado"} grupo "{nombre_grupo}" con {len(permisos)} permisos.'))
+
         for nombre_grupo, apps_del_grupo in GRUPOS_APPS.items():
             grupo, creado = Group.objects.get_or_create(name=nombre_grupo)
             permisos = []

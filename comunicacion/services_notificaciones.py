@@ -32,7 +32,7 @@ from .services import (
     enviar_whatsapp_template,
     normalizar_telefono_wa,
 )
-from .services_responsables import SIN_DESTINO, telefono_de, telefonos_aviso
+from .services_responsables import SIN_DESTINO, destinos_ventas, telefono_de, telefonos_aviso
 
 logger = logging.getLogger(__name__)
 
@@ -691,6 +691,9 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
         cuerpo += f"\nNos encontró por: {cotizacion.como_nos_encontro}"
     if cotizacion.notas_cliente:
         cuerpo += f"\nNotas del cliente: {cotizacion.notas_cliente}"
+    atendido_por = cotizacion.vendedor.nombre if cotizacion.vendedor_id else ''
+    if atendido_por:
+        cuerpo += f"\nAtendido por: {atendido_por}"
 
     _seguro(
         'enviar la copia por email de la alerta interna',
@@ -705,10 +708,11 @@ def alertar_equipo_nueva_cotizacion(cotizacion):
         titulo=f'Nueva cotización web ({folio})', categoria='Cotización',
         lineas=[f'Tipo de evento: {tipo_evento}', f'Fecha: {fecha}', f'Total a pagar: ${total}',
                 *([f'Nos encontró por: {cotizacion.como_nos_encontro}'] if cotizacion.como_nos_encontro else []),
-                *([f'Notas del cliente: {cotizacion.notas_cliente}'] if cotizacion.notas_cliente else [])],
+                *([f'Notas del cliente: {cotizacion.notas_cliente}'] if cotizacion.notas_cliente else []),
+                *([f'Atendido por: {atendido_por}'] if atendido_por else [])],
         enlace=portal).texto()
 
-    destinos = telefonos_aviso('ENCARGADO')
+    destinos = destinos_ventas()
     if not destinos:
         logger.error(
             "%s: %s; la alerta interna de "
