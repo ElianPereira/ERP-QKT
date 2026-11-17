@@ -32,14 +32,29 @@
   </tbody>
 </table>
 
+{% if hay_traspasos %}
+<h2 class="doc-seccion">Traspasos entre cuentas propias</h2>
+<table class="doc-tabla">
+  <thead><tr><th>Cuenta</th><th class="num col-monto">Recibido</th><th class="num col-monto">Enviado</th><th class="num col-monto">Neto</th></tr></thead>
+  <tbody>
+    {% for c in cuentas %}
+    <tr><td>{{ c.nombre }}</td><td class="num">{{ c.traspasos_entradas|moneda }}</td><td class="num">{{ c.traspasos_salidas|moneda }}</td>
+      <td class="num texto-{{ c.traspasos|tono_signo }}">{{ c.traspasos|moneda }}</td></tr>
+    {% endfor %}
+    <tr class="total"><td>Total</td><td class="num">{{ traspasos_entradas|moneda }}</td><td class="num">{{ traspasos_salidas|moneda }}</td>
+      <td class="num">{{ traspasos|moneda }}</td></tr>
+  </tbody>
+</table>
+{% endif %}
+
 {% if meses %}
 <h2 class="doc-seccion">Por mes</h2>
 <table class="doc-tabla">
-  <thead><tr><th>Mes</th><th class="num col-monto">Entradas</th><th class="num col-monto">Salidas</th><th class="num col-monto">Neto</th><th class="num col-monto">Saldo al cierre</th></tr></thead>
+  <thead><tr><th>Mes</th><th class="num col-monto">Entradas</th><th class="num col-monto">Salidas</th><th class="num col-monto">Neto</th>{% if hay_traspasos %}<th class="num col-monto">Traspasos</th>{% endif %}<th class="num col-monto">Saldo al cierre</th></tr></thead>
   <tbody>
     {% for m in meses %}
     <tr><td>{{ m.mes|date:"F Y"|capfirst }}</td><td class="num">{{ m.entradas|moneda }}</td><td class="num">{{ m.salidas|moneda }}</td>
-      <td class="num texto-{{ m.neto|tono_signo }}">{{ m.neto|moneda }}</td><td class="num negrita">{{ m.saldo|moneda }}</td></tr>
+      <td class="num texto-{{ m.neto|tono_signo }}">{{ m.neto|moneda }}</td>{% if hay_traspasos %}<td class="num">{{ m.traspasos|moneda }}</td>{% endif %}<td class="num negrita">{{ m.saldo|moneda }}</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -47,16 +62,16 @@
 
 <h2 class="doc-seccion">Por cuenta</h2>
 <table class="doc-tabla">
-  <thead><tr><th>Cuenta</th><th class="num col-monto">Saldo inicial</th><th class="num col-monto">Entradas</th><th class="num col-monto">Salidas</th><th class="num col-monto">Saldo final</th></tr></thead>
+  <thead><tr><th>Cuenta</th><th class="num col-monto">Saldo inicial</th><th class="num col-monto">Entradas</th><th class="num col-monto">Salidas</th>{% if hay_traspasos %}<th class="num col-monto">Traspasos</th>{% endif %}<th class="num col-monto">Saldo final</th></tr></thead>
   <tbody>
     {% for c in cuentas %}
     <tr><td>{{ c.nombre }}</td><td class="num">{{ c.saldo_inicial|moneda }}</td><td class="num">{{ c.entradas|moneda }}</td>
-      <td class="num">{{ c.salidas|moneda }}</td><td class="num negrita">{{ c.saldo_final|moneda }}</td></tr>
+      <td class="num">{{ c.salidas|moneda }}</td>{% if hay_traspasos %}<td class="num">{{ c.traspasos|moneda }}</td>{% endif %}<td class="num negrita">{{ c.saldo_final|moneda }}</td></tr>
     {% empty %}
-    <tr><td colspan="5" class="vacio">Sin cuentas bancarias activas.</td></tr>
+    <tr><td colspan="6" class="vacio">Sin cuentas bancarias activas.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 {% endblock %}
 
-{% block notas %}Saldo según libros (no el del banco): para el saldo real del banco usa la Conciliación bancaria. Entradas = cargos a bancos; salidas = abonos.{% endblock %}
+{% block notas %}Saldo según libros (no el del banco): para el saldo real del banco usa la Conciliación bancaria. Entradas = cargos a bancos; salidas = abonos. Los traspasos entre cuentas propias no cuentan como entradas ni salidas: solo mueven dinero entre cuentas.{% endblock %}
