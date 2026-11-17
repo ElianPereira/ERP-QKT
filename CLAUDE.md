@@ -330,7 +330,7 @@ salvo que queden obsoletas.
   (`@no_para_vendedor`: comparten `view_cotizacion`/`view_pago` con el trabajo diario y la prueba los encontró abiertos), tablero inicial
   sin ventas/gastos/utilidad (ni se calculan), sin costo, margen, componentes ni insumos en Productos y Cotizaciones. **Hallazgo legal
   para el propietario**: una cotización capturada en el admin **no deja ninguna `AceptacionLegal`** (solo el cotizador web y Kooxi la
-  registran); no se inventó un flujo, queda pendiente de definir con el abogado. **2 (visitas)**: rol `VENTAS` en `Responsable`;
+  registran); no se inventó un flujo ahí: lo resuelve el Issue #506 (consentimiento automático por portal y WhatsApp, ver la entrada del 2026-11-17 sobre consentimiento). **2 (visitas)**: rol `VENTAS` en `Responsable`;
   `destinos_ventas()`/`rol_ventas()` (sin responsable de VENTAS todo cae al encargado como antes; Dirección conserva su copia). A Ventas:
   cotización nueva, solicitud de visita (con botones), agenda de la víspera (siempre, con teléfono; «Mañana no tienes visitas agendadas»),
   aviso de 45 min, llegada de una **visita**, prospecto sin respuesta y pase a humano de un cliente con cotización viva atendida por ella
