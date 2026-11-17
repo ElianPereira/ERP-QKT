@@ -22,6 +22,7 @@ from django.utils.html import strip_tags
 from core_erp import impuestos
 from core_erp.documentos import nombre_archivo, render_pdf, respuesta_pdf
 from core_erp.excel import respuesta_excel
+from ventas.permisos import es_vendedor
 
 from .models import (
     Cliente,
@@ -459,6 +460,16 @@ def ver_dashboard_kpis(request):
     # saltaba al mes siguiente a partir de las 18:00 del último día del mes.
     hoy = timezone.localdate()
 
+    if es_vendedor(request.user):
+        # El personal de ventas no ve ventas, gastos, utilidad ni cartera (Issue #505):
+        # ni siquiera se calculan; solo su agenda.
+        context.update({
+            'ocultar_finanzas': True,
+            'ultimos_eventos': Cotizacion.objects.filter(fecha_evento__gte=hoy, estado='CONFIRMADA')
+                               .select_related('cliente').order_by('fecha_evento')[:5],
+        })
+        return render(request, 'admin/dashboard.html', context)
+
     # --- Elián · Quinta Ko'ox Tanil (Eventos) ---
     ventas_mes_quinta = Cotizacion.objects.filter(estado__in=ESTADOS_VENTA_REAL, fecha_evento__year=hoy.year, fecha_evento__month=hoy.month).aggregate(total=Sum('precio_final'))['total'] or 0
     gastos_mes_quinta = Compra.objects.filter(unidad_negocio__clave='QUINTA', fecha_emision__year=hoy.year, fecha_emision__month=hoy.month).aggregate(total=Sum('total'))['total'] or 0
@@ -642,6 +653,8 @@ def descargar_ficha_producto(request, producto_id):
 @permission_required('comercial.view_pago', raise_exception=True)
 def ver_cartera_cxc(request):
     """Dashboard de Cuentas por Cobrar."""
+    if es_vendedor(request.user):
+        raise PermissionDenied  # cartera de toda la Quinta: no es del personal de ventas (Issue #505)
     from django.db.models import Case, CharField, DecimalField, F, Value, When
     from django.db.models.functions import Coalesce
 

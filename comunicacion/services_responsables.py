@@ -60,6 +60,19 @@ def telefonos_aviso(rol: str, hoy=None) -> list:
     return list(dict.fromkeys(t for t in telefonos if t))
 
 
+def destinos_ventas(hoy=None) -> list:
+    """A dónde van los avisos de ventas (cotización nueva, visitas, prospectos): los del rol VENTAS si
+    existe un responsable activo; si no, los del ENCARGADO, igual que antes (Issue #505)."""
+    if responsable('VENTAS', hoy) is not None:
+        return telefonos_aviso('VENTAS', hoy)
+    return telefonos_aviso('ENCARGADO', hoy)
+
+
+def rol_ventas(hoy=None) -> str:
+    """Rol dueño de los pendientes de ventas: VENTAS si hay responsable, si no ENCARGADO."""
+    return 'VENTAS' if responsable('VENTAS', hoy) is not None else 'ENCARGADO'
+
+
 def rol_de_telefono(telefono: str):
     """Rol del número en el directorio (activo o pendiente de confirmar), o None."""
     tel = normalizar_telefono_wa(telefono)

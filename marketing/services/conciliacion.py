@@ -55,13 +55,13 @@ def _decimal(valor) -> Decimal:
 
 
 def _hay_estados_del_mes(anio: int, mes: int, inicio: date, fin: date) -> bool:
-    """Hay movimientos del mes y el estado procesado del mes de **cada** cuenta bancaria activa. Con dos
+    """Hay movimientos del mes y el estado procesado del mes de **cada** cuenta bancaria activa que ya operaba ese mes. Con dos
     cuentas, si llegó el estado de una y no el de la otra, faltan cargos y evaluar daría diferencias falsas."""
     if not MovimientoEstadoCuenta.objects.filter(fecha__range=(inicio, fin)).exists():
         return False
     con_estado = set(EstadoCuentaBancario.objects.filter(
         periodo_anio=anio, periodo_mes=mes, estado='PROCESADO').values_list('cuenta_bancaria_id', flat=True))
-    return all(c.pk in con_estado for c in CuentaBancaria.objects.filter(activa=True))
+    return all(c.pk in con_estado for c in CuentaBancaria.objects.filter(activa=True) if c.operaba_en(anio, mes))
 
 
 def cargos_bancarios(anio: int, mes: int, plataforma: str = 'META') -> dict:

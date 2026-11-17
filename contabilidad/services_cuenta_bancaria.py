@@ -63,7 +63,8 @@ def cambiar_cuenta_bancaria(obj, nueva, usuario):
             raise CambioCuentaRechazado('Ya está en esa cuenta.')
 
         lineas = []
-        for poliza in _polizas_del_objeto(obj):
+        polizas = list(_polizas_del_objeto(obj))
+        for poliza in polizas:
             if actual is not None:
                 lineas += list(MovimientoContable.objects.filter(poliza=poliza, cuenta_id=actual.pk))
             cerrada = SaldoApertura.objects.filter(
@@ -71,6 +72,10 @@ def cambiar_cuenta_bancaria(obj, nueva, usuario):
                 aplicado=True, fecha_corte__gte=poliza.fecha).exists()
             if cerrada:
                 raise CambioCuentaRechazado(f'La póliza {poliza.folio} es de un periodo ya cerrado.')
+        if polizas and not lineas:
+            # Cambiar solo el campo dejaría el pago en una cuenta y su póliza en otra.
+            raise CambioCuentaRechazado('Su póliza no tiene ninguna línea en la cuenta de bancos actual: '
+                                        'no se puede reapuntar. Revisa la póliza antes de cambiar la cuenta.')
         for linea in lineas:
             if linea.movimientos_banco_emparejados.exists():
                 raise CambioCuentaRechazado(

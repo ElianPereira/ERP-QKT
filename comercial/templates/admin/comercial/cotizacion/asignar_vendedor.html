@@ -1,0 +1,49 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Inicio</a>
+› <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+› <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+› Asignar vendedor
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="qkt-pagina qkt-pagina--angosta">
+  <div class="qkt-pagina__cabecera">
+    <h1 class="qkt-pagina__titulo">{{ title }}</h1>
+  </div>
+
+  <div class="qkt-aviso qkt-aviso--alerta">
+    Esta atribución sustituye a la actual aunque la venta ya esté confirmada. Queda registrada como
+    asignación de Dirección y es la que usará la comisión.
+  </div>
+
+  <p class="qkt-texto-2">Se aplicará a {{ queryset|length }} cotización(es):</p>
+  <ul class="qkt-lista-objetos">
+    {% for obj in queryset %}
+      <li>{{ obj }}{% if obj.vendedor %} — hoy: {{ obj.vendedor.nombre }}{% endif %}</li>
+    {% endfor %}
+  </ul>
+
+  <form method="post" class="qkt-botonera">
+    {% csrf_token %}
+    {% for obj in queryset %}
+      <input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk }}">
+    {% endfor %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="confirmar" value="si">
+    <div class="qkt-campo">
+      <label for="id_vendedor">Vendedor</label>
+      <select name="vendedor" id="id_vendedor" required>
+        <option value="">Elige…</option>
+        {% for e in vendedores %}<option value="{{ e.pk }}">{{ e.nombre }}</option>{% endfor %}
+      </select>
+    </div>
+    <button type="submit" class="qkt-btn qkt-btn--primario">Asignar</button>
+    <a href="{% url opts|admin_urlname:'changelist' %}" class="qkt-btn qkt-btn--secundario">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

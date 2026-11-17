@@ -121,14 +121,14 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing manual` |
+| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing ventas manual` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
 | Servidor local | requiere `.env` desde `.env.example` (`SECRET_KEY` sin default) |
 | Regenerar `requirements.lock` (tras tocar `requirements.txt`) | `pip-compile requirements.txt --output-file=requirements.lock --resolver=backtracking` |
 
-**Estructura clave** (11 apps Django propias):
+**Estructura clave** (12 apps Django propias):
 - `comercial/` — núcleo: cotizaciones, clientes, inventario, pagos, portal
   cliente, cotizador público. La más grande, con diferencia.
 - `contabilidad/` — cuentas, pólizas (generadas por *signals*, nunca a mano
@@ -139,6 +139,8 @@ pre-commit · CI en GitHub Actions.
   superusuario, solo lectura sobre datos existentes + parámetros del propietario.
 - `marketing/` — prospectos (`Lead`, embudo derivado de mensajes/visitas/cotizaciones), motivos de pérdida y
   retención, pauta de Meta y Google Ads, KPIs, decisiones, conversiones, referidos; solo superusuario (Issue #468).
+- `ventas/` — personal de ventas (Issue #505): atribución de cotizaciones al vendedor (`services_atribucion`), grupo
+  `Vendedor` y sus candados (`permisos.py`); el motor de comisiones, cortes y tablero llegan en los PR 3–5.
 - `manual/` — manual de procedimientos por rol (Issue #507): secciones Markdown en `manual/secciones/`, vista
   `/admin/manual/`, PDF por rol, capturas automáticas. **Regla permanente**: un PR que cambie una pantalla o flujo
   que el manual describe actualiza su sección y corre `python manage.py generar_capturas_manual` en el mismo PR.
@@ -282,11 +284,80 @@ salvo que queden obsoletas.
 
 
 
+- 2026-11-17 — **Personal de ventas, fase 1 (PR 1A + 1B + 2 del Issue #505)** (una rama, `claude/ventas-505-fase1`, commits con
+  prefijo `1A:`/`1B:`/`2:`; **no mueve dinero todavía**: el motor de comisiones es el PR 3; sin zonas restringidas; migraciones
+  aditivas `nomina.0007`, `comercial.0126`, `comunicacion.0021`). **1A (nómina)**: `Empleado` gana expediente (identificación, domicilio,
+  emergencia, seguridad social, pago, usuario, baja), puesto `VENTAS` y el permiso `nomina.ver_expediente_empleado` (sin asignar a ningún
+  grupo: sin él el admin de Empleado muestra solo lo de siempre y la descarga/URL del acuerdo dan 404). `DocumentoEmpleado` («Expedientes»,
+  storage privado, firma real PDF/JPG/PNG ≤ 10 MB, `ARCHIVOS_PROTEGIDOS` + `PERMISOS_EXTRA` en `core_erp/descargas.py`),
+  `CondicionesPago` («Condiciones», solo superusuario; BORRADOR→PROPUESTA→ACEPTADA→SUSTITUIDA/CANCELADA, una ACEPTADA por empleado por
+  restricción parcial, inmutable al aceptarse; `services_expediente.condiciones_vigentes(empleado, fecha)` y `monto_de_contratacion(n)`
+  quedan listos para el PR 3) y `EscalonComision`. **Porcentajes como fracción** (0.05 = 5 %, `tope_compensacion` 0.30). CURP/RFC/NSS/CLABE
+  (con dígito verificador) se limpian en `clean()` y **ningún error repite el dato**; sus columnas son de 30 para limpiar antes de validar.
+  PDF `nomina/pdf_propuesta.html` (cifras de las Condiciones; un componente no capturado no sale) y `pdf_acuerdo.html` (texto del abogado
+  palabra por palabra: un test lo compara con `docs/ventas/acuerdo_confidencialidad_referencia.html`; sin nombre legal, domicilio o
+  identificación no se genera y dice cuál falta). `TITULAR_LEGAL` vive en `core_erp/documentos.py`. Candado: no se liga `usuario` a un
+  Empleado `VENTAS` sin `DocumentoEmpleado` ACUERDO_FIRMADO activo (`clean()` y `save()`); `fecha_baja` abre un `Pendiente` a DIRECCION.
+  **1B (atribución)**: `Cotizacion.vendedor/vendedor_origen/…` (`editable=False`), app `ventas/` (en `INSTALLED_APPS` y `ci.yml`).
+  `services_atribucion.atribuir()` usa `update()`, nunca pisa y se congela al confirmarse (solo `forzar` de un superusuario, acción
+  «Asignar vendedor» con confirmación). COTIZO en el alta del admin (`save_model`); VISITA/SEGUIMIENTO en un `post_save` de cotizaciones sin
+  `usuario` (web/Kooxi), **dentro** de la transacción para que las alertas ya la vean y con `try/except`; el teléfono se compara por sus
+  últimos 10 dígitos **en Python** (cada fuente lo guarda con otro formato). La ventana es `dias_atribucion` de las Condiciones (30 sin
+  ellas). «Atendido por» en PDF de la cotización, alerta de cotización nueva, evento del calendario y «Tu asesora» en el portal (botón al
+  número público, nunca el personal). `Pago.usuario` ya se llenaba en `PagoAdmin` y en el inline; `services_terminal` lo llena con el usuario
+  del Empleado de ese teléfono. Grupo **`Vendedor`** (`crear_grupos_permisos` ganó `GRUPOS_EXPLICITOS`): view/add/change de Cliente,
+  Cotización, Concepto y Visita, view/add de Pago, solo lectura de productos (y sus 3 vistas por línea), `BloqueoFecha` y `HorarioVisita`;
+  nada de `delete`. **Los candados son de servidor** (`ventas.permisos.es_vendedor`): sin acciones en Cotizaciones/Pagos, sin cancelar,
+  sin descuentos/cortesías, sin `Pago` REEMBOLSO ni CONDONACION (validado en el formulario), sin Cartera CxC ni reportes de ventas
+  (`@no_para_vendedor`: comparten `view_cotizacion`/`view_pago` con el trabajo diario y la prueba los encontró abiertos), tablero inicial
+  sin ventas/gastos/utilidad (ni se calculan), sin costo, margen, componentes ni insumos en Productos y Cotizaciones. **Hallazgo legal
+  para el propietario**: una cotización capturada en el admin **no deja ninguna `AceptacionLegal`** (solo el cotizador web y Kooxi la
+  registran); no se inventó un flujo, queda pendiente de definir con el abogado. **2 (visitas)**: rol `VENTAS` en `Responsable`;
+  `destinos_ventas()`/`rol_ventas()` (sin responsable de VENTAS todo cae al encargado como antes; Dirección conserva su copia). A Ventas:
+  cotización nueva, solicitud de visita (con botones), agenda de la víspera (siempre, con teléfono; «Mañana no tienes visitas agendadas»),
+  aviso de 45 min, llegada de una **visita**, prospecto sin respuesta y pase a humano de un cliente con cotización viva atendida por ella
+  (no queja). Se quedan en el encargado: llegada de reservación, pagos, compras, checklists, depósito, quejas. `ROLES_RESUMEN` incluye
+  VENTAS y el escalamiento por vencimiento cubre ENCARGADO y VENTAS (decisión: un URGENTE de ventas sin atender no debe quedarse mudo).
+  `horarios_disponibles` ya no ofrece los días con `BloqueoFecha` ni Evento/Pasadía confirmado (Hospedaje sí). `Visita` gana
+  vendedor/origen/resultado/atendida_en/atendida_por (adelantados a 1B porque la regla VISITA los lee). Alta manual (solo Vendedor y
+  superusuario, mismas reglas de bloques y unicidad, cita de hoy permitida): la vendedora la deja CONFIRMADA y suya, Dirección
+  POR_CONFIRMAR; un día ocupado la rechaza para ella y para Dirección es aviso. Cierre: `enviar_cierres()` (dentro de
+  `enviar_avisos_previos_visitas`, cada 10 min) pregunta a VENTAS 30 min después de la cita, una vez, con `vres:<id>:ok|no`; «Atendida»
+  atribuye las cotizaciones BORRADOR/COTIZADA del teléfono. ATENDIDA exige CONFIRMADA y hora pasada. **Pendiente del propietario**: dar de
+  alta al Empleado de Ventas, sus Condiciones y su `Responsable` VENTAS; capturar `HorarioVisita`; asignar el permiso del expediente;
+  correr `python manage.py crear_grupos_permisos` (no corre solo en el deploy; crea el grupo `Vendedor`).
+
+- 2026-11-16 — **Segunda cuenta BBVA: correcciones tras revisar los PR 1–3** (Issue #499; **mueve contabilidad**: revisión del
+  propietario antes del merge; sin zonas restringidas; **sin migración**). **(1) Fondeos «TRASPASO CUENTAS PROPIAS»**: BBVA imprime ese
+  concepto en las dos cuentas y solo el abono dice el origen, así que el cargo de la otra cuenta caía en `RETIROS_DUENO` (regla del
+  sistema `TRASPAS*|RETIRO*`). `services_reglas_banco.asentar_fondeos` (en `emparejar_y_asentar`, justo después de
+  `asentar_traspasos_propios`, nunca antes de `_emparejar_automaticamente`): `parejas_de_fondeos(cuenta)` empareja cada cargo con un abono
+  del mismo importe, ±1 día, de otra cuenta propia que `es_traspaso_propio` atribuye a esa cuenta, uno a uno por (fecha, id) y **sin estado
+  guardado** (se recalcula de los datos, por eso reprocesar un PDF no duplica). Con pareja → puente. Sin pareja y con alguna otra cuenta
+  (que ya operaba ese mes) sin estado PROCESADO que cubra fecha−1 y fecha+1 → **espera sin asiento ni pendiente** y `aplicar_reglas` lo
+  excluye; con las otras cuentas procesadas → sigue a `aplicar_reglas` (retiro del dueño, como antes). `reintentar_fondeos_cruzados`
+  (al final de cada estado) repite el proceso en los estados del mismo mes y del anterior de las otras cuentas, y `autocorregir_fondeos`
+  reapunta a la puente un cargo ya APLICADO en retiros cuando aparece su pareja (`services_traspasos.reapuntar_a_puente`, mismos candados que
+  `reclasificar_traspasos`). **Trampa que salió en tests**: el reintento cruzado no puede llamar `aplicar_reglas` sobre todo el otro
+  estado (clasificaba como aportación un abono que su propio estado aún no había asentado): solo evalúa los cargos liberados
+  (`solo_ids`). Con una sola cuenta activa nada cambia. **(2)** `_patrones_de_cuenta`: la cuenta dentro de la CLABE es `clabe[7:17]`, no
+  `[-10:]`. **(3)** `CuentaBancaria.operaba_en(anio, mes)` (fecha del saldo inicial o, si falta, de alta) lo usan `avisar_si_no_llego` y
+  `_hay_estados_del_mes`: una cuenta dada de alta en noviembre ya no abre el aviso URGENTE de octubre ni bloquea la conciliación de pauta.
+  Efecto en tests: una cuenta creada «hoy» ya no opera en meses pasados, así que los tests de esos meses fijan `fecha_saldo_inicial`.
+  **(4)** `cambiar_cuenta_bancaria` rechaza (sin escribir) si hay pólizas APLICADAS y ninguna línea en la cuenta actual. **(5)**
+  `sustituir_asientos_provisionales_por_cfdi` reapunta la compra (otra cuenta propia) **antes** de cancelar la provisional; si el reapunte
+  se rechaza, no cancela y sigue. **(6)** El flujo de efectivo (`FlujoEfectivoService`, PDF y Excel) muestra aparte «Traspasos entre
+  cuentas propias» (pólizas con línea en la puente), los saca de entradas/salidas y por origen, y deja intactos los saldos por cuenta.
+  **(7)** Acción «Cambiar cuenta bancaria» también en «Movimientos de depósito» (`MovimientoDepositoAdmin`, oculto del menú con
+  `hide_models`; mixin `CambiarCuentaBancariaMixin` compartido con Pagos) y documentación en `PROJECT_CONTEXT.md`. **Pendiente**: cuando
+  llegue el primer PDF real de la Pagadora (1–2 de diciembre) añadir su texto exacto a `FondeoTraspasoCuentasPropiasTest` y ajustar
+  `TEXTO_FONDEO` si difiere. El parser de BBVA no se tocó; no se pudo comprobar el formato contra un PDF real.
+
 - 2026-11-17 — **Manual de procedimientos por rol, M1: infraestructura** (Issue #507; sin zonas restringidas; migración
   `manual.0001`, una tabla nueva `DescargaManual`). App `manual/`: secciones en `manual/secciones/NN_nombre.md` con cabecera
   (`titulo/capitulo/orden/roles`), bloques `:::rol X`, `:::correcto|nohagas|quehacer|nota`, valores del negocio con
   `{{ dias_pago_total.EVENTO }}` (`services.contexto_negocio`, nunca escritos a mano). **Rol derivado del usuario, nunca de la
-  URL** (`roles_de`): superusuario todo; grupo `Vendedor`→VENTAS (el grupo aún no existe: lo crea #505), `Ventas`→ENCARGADO,
+  URL** (`roles_de`): superusuario todo; grupo `Vendedor`→VENTAS (lo crea la app `ventas`, #505), `Ventas`→ENCARGADO,
   `Contabilidad`→CONTADOR; otro staff solo TODOS. Sección fuera de tu rol = 404 igual que inexistente. **`[CONFIRMAR:]` = borrador**:
   solo el superusuario la ve; el PDF «Completo» del superusuario la incluye marcada, el de un rol nunca. PDF
   (`core_erp/documentos.py`, `manual/pdf_manual.html`): portada, índice con páginas, pie con versión y «Descargado por»; un usuario

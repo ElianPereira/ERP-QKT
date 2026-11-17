@@ -41,6 +41,9 @@ PLANTILLAS_MIGRADAS = sorted(
         _BASE / 'indicadores' / 'templates' / 'indicadores' / 'pdf_indicadores.html',
         # Cumplimiento (Issue #403).
         _BASE / 'cumplimiento' / 'templates' / 'cumplimiento' / 'pdf_expediente.html',
+        # Expediente de ventas (Issue #505): propuesta y acuerdo de confidencialidad.
+        _BASE / 'nomina' / 'templates' / 'nomina' / 'pdf_propuesta.html',
+        _BASE / 'nomina' / 'templates' / 'nomina' / 'pdf_acuerdo.html',
         # Ficha de pago en tienda (Paynet).
         _BASE / 'templates' / 'portal' / 'ficha_paynet.html',
     ]
@@ -116,7 +119,7 @@ class PlantillasMigradasTest(SimpleTestCase):
     """Guardián: lo migrado no vuelve a los estilos sueltos."""
 
     def test_hay_plantillas_que_vigilar(self):
-        self.assertGreaterEqual(len(PLANTILLAS_MIGRADAS), 21)
+        self.assertGreaterEqual(len(PLANTILLAS_MIGRADAS), 23)
 
     def test_anexos_del_contrato_sin_estilos_sueltos(self):
         for ruta in (_BASE / 'comercial' / 'templates' / 'contratos' / 'propio').glob('_anexo_*.html'):

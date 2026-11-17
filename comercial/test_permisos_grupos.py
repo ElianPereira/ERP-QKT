@@ -304,7 +304,7 @@ class CrearGruposPermisosComandoTest(TestCase):
         call_command('crear_grupos_permisos')
         total_segunda = Group.objects.get(name='Ventas').permissions.count()
         self.assertEqual(total_primera, total_segunda)
-        self.assertEqual(Group.objects.count(), 3)
+        self.assertEqual(Group.objects.count(), 4)  # Ventas, Contabilidad, Nómina y Vendedor
 
     def test_constantesistema_solo_view_para_ventas(self):
         call_command('crear_grupos_permisos')

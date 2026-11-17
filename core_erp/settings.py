@@ -95,6 +95,7 @@ INSTALLED_APPS = [
     'cumplimiento',
     'marketing',
     'manual',
+    'ventas',
     'django_otp',
     'django_otp.plugins.otp_totp',
 ]
@@ -668,6 +669,8 @@ JAZZMIN_SETTINGS = {
         "nomina":                           "fas fa-money-check-alt",
         "nomina.Empleado":                  "fas fa-user-tie",
         "nomina.ReciboNomina":              "fas fa-file-contract",
+        "nomina.DocumentoEmpleado":         "fas fa-folder-open",
+        "nomina.CondicionesPago":           "fas fa-handshake",
 
         # FACTURACIÓN
         "facturacion":                      "fas fa-stamp",
@@ -743,6 +746,8 @@ JAZZMIN_SETTINGS = {
         # quien sí quiera costear por receta.
         "comercial.Insumo",
         "comercial.SubProducto",
+        # Solo para la acción «Cambiar cuenta bancaria» sobre un movimiento de depósito (corrección).
+        "comercial.MovimientoDeposito",
         # El catálogo plano de Productos se reorganizó en 3 submódulos por
         # línea de negocio (Eventos/Pasadía/Hospedaje, ver
         # admin_lineas_negocio.py) — son proxies del mismo modelo/tabla, así
@@ -826,6 +831,8 @@ JAZZMIN_SETTINGS = {
         "nomina.Empleado",
         "nomina.ReciboNomina",
         "nomina.AprobacionNomina",
+        "nomina.DocumentoEmpleado",
+        "nomina.CondicionesPago",
 
         # === FACTURACIÓN ===
         "facturacion",

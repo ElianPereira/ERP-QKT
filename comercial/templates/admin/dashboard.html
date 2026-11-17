@@ -3,7 +3,7 @@
 {% load static %}
 
 {% block content %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% if not ocultar_finanzas %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endif %}
 
 <div class="qkt-pagina qkt-pagina--ancha">
     <div class="qkt-pagina__cabecera">
@@ -12,13 +12,16 @@
 
     <nav class="qkt-atajos" aria-label="Accesos rápidos">
         <a href="{% url 'admin:comercial_cotizacion_add' %}" class="qkt-atajo"><i class="fas fa-plus-circle" aria-hidden="true"></i> Cotización</a>
+        {% if not ocultar_finanzas %}
         <a href="{% url 'reportes:pagos' %}" class="qkt-atajo"><i class="fas fa-cash-register" aria-hidden="true"></i> Pagos</a>
         <a href="{% url 'reportes:rentabilidad' %}" class="qkt-atajo"><i class="fas fa-chart-line" aria-hidden="true"></i> Financiero</a>
         <a href="{% url 'crear_solicitud' %}" class="qkt-atajo"><i class="fas fa-file-invoice-dollar" aria-hidden="true"></i> Facturar</a>
         <a href="{% url 'admin:comercial_compra_changelist' %}" class="qkt-atajo"><i class="fas fa-receipt" aria-hidden="true"></i> Gastos</a>
         <a href="{% url 'admin:nomina_recibonomina_changelist' %}" class="qkt-atajo"><i class="fas fa-users" aria-hidden="true"></i> Nómina</a>
+        {% endif %}
     </nav>
 
+    {% if not ocultar_finanzas %}
     <div class="qkt-kpis">
         <div class="qkt-kpi qkt-kpi--exito">
             <div class="qkt-kpi__label">Ventas del mes</div>
@@ -34,11 +37,15 @@
         </div>
     </div>
 
+    {% endif %}
+
     <div class="qkt-tablero">
+        {% if not ocultar_finanzas %}
         <div class="qkt-panel">
             <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo">Finanzas · QKT</h2></div>
             <div class="qkt-panel__cuerpo"><canvas id="financeChart" height="120"></canvas></div>
         </div>
+        {% endif %}
 
         <div class="qkt-panel">
             <div class="qkt-panel__cab">
@@ -71,6 +78,7 @@
     </div>
 </div>
 
+{% if not ocultar_finanzas %}
 {{ chart_labels|json_script:"chart-labels" }}
 {{ chart_ventas_quinta|json_script:"chart-ventas-quinta" }}
 {{ chart_gastos_quinta|json_script:"chart-gastos-quinta" }}
@@ -98,4 +106,5 @@
         }
     });
 </script>
+{% endif %}
 {% endblock %}

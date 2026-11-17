@@ -9,10 +9,11 @@ Kooxi o hacia el webhook: un fallo de WhatsApp no debe tumbar la cita.
 """
 import logging
 import re
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.urls import reverse
 from django.utils import timezone
@@ -29,7 +30,7 @@ from .services import (
     normalizar_telefono_wa,
     texto_plano_wa,
 )
-from .services_responsables import telefono_de, telefonos_aviso
+from .services_responsables import destinos_ventas, responsable, rol_ventas, telefono_de, telefonos_aviso
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,11 @@ PREVIO_CLIENTE = timedelta(hours=2)
 PREVIO_EQUIPO = timedelta(minutes=45)
 COMO_AVISAR_LLEGADA = 'Cuando llegues, escríbeme «ya llegué» por aquí y le aviso al equipo para que te reciba.'
 RE_BOTON = re.compile(r'^vis:(\d+):(ok|no)$')
+RE_BOTON_CIERRE = re.compile(r'^vres:(\d+):(ok|no)$')
+CIERRE_DESPUES = timedelta(minutes=30)      # cuánto después de la cita se le pregunta cómo le fue
+CIERRE_HASTA = timedelta(days=3)            # no se persiguen visitas más viejas
+HORIZONTE_MANUAL_DIAS = 90
+TIPOS_QUE_OCUPAN_LA_QUINTA = ('EVENTO', 'PASADIA')
 # «Ya llegué» del recordatorio del mismo día: lo toca el cliente, no el equipo.
 RE_BOTON_LLEGADA = re.compile(r'^lleg:(\d+)$')
 MENSAJE_LLEGADA = '¡Bienvenido! Ya le avisé al equipo: en un momento alguien te recibe en la entrada.'
@@ -78,17 +84,38 @@ def _datos_equipo(visita) -> list:
     return [f'{visita.personas} personas' if visita.personas else '', f'Tel. {telefono_legible(visita.telefono)}']
 
 
-def horarios_disponibles(ahora=None, dias: int = HORIZONTE_DIAS, limite: Optional[int] = MAX_OFRECIDOS) -> list:
+def dias_ocupados(desde: date, hasta: date) -> set:
+    """Días de [desde, hasta] en que la Quinta no recibe visitas: bloqueados (`BloqueoFecha`) o con un
+    Evento o Pasadía confirmado. Un Hospedaje confirmado no la ocupa: las visitas siguen (Issue #505)."""
+    from comercial.disponibilidad import bloqueos_activos, cotizaciones_apartadas
+
+    fin = hasta + timedelta(days=1)
+    rangos = [c.rango_ocupado() for c in cotizaciones_apartadas(desde, fin).filter(
+        tipo_servicio__in=TIPOS_QUE_OCUPAN_LA_QUINTA)]
+    rangos += [b.rango_ocupado() for b in bloqueos_activos(desde, fin)]
+    ocupados = set()
+    for inicio, termina in rangos:
+        dia = inicio
+        while dia < termina:
+            ocupados.add(dia)
+            dia += timedelta(days=1)
+    return ocupados
+
+
+def horarios_disponibles(ahora=None, dias: int = HORIZONTE_DIAS, limite: Optional[int] = MAX_OFRECIDOS,
+                         min_anticipacion: timedelta = MIN_ANTICIPACION, excluir_ocupados: bool = True) -> list:
     """Horarios libres (datetimes con zona), de los más próximos a los lejanos.
 
     Parte cada ventana activa en citas de `duracion_minutos`, descarta las que
-    empiezan antes de `MIN_ANTICIPACION` y las que ya tienen una visita activa.
+    empiezan antes de `min_anticipacion` y las que ya tienen una visita activa, y
+    (`excluir_ocupados`) los días con Evento, Pasadía o bloqueo.
     Con `limite`, ofrece a lo más `MAX_POR_DIA` por día para que el cliente vea
     varios días y no solo el primero.
     """
     ahora = ahora or timezone.now()
-    desde = ahora + MIN_ANTICIPACION
+    desde = ahora + min_anticipacion
     hoy = timezone.localdate(ahora)
+    cerrados = dias_ocupados(hoy, hoy + timedelta(days=dias)) if excluir_ocupados else set()
     ventanas = list(HorarioVisita.objects.filter(activo=True))
     ocupados = set(Visita.objects.filter(estado__in=Visita.ACTIVAS, inicio__gte=desde)
                    .values_list('inicio', flat=True))
@@ -96,6 +123,8 @@ def horarios_disponibles(ahora=None, dias: int = HORIZONTE_DIAS, limite: Optiona
     libres = []
     for delta in range(dias + 1):
         dia = hoy + timedelta(days=delta)
+        if dia in cerrados:
+            continue
         del_dia = []
         for v in ventanas:
             if v.dia_semana != dia.weekday():
@@ -125,7 +154,7 @@ def id_boton(visita_id: int, accion: str) -> str:
 
 def es_boton(texto: str) -> bool:
     texto = (texto or '').strip()
-    return bool(RE_BOTON.match(texto) or RE_BOTON_LLEGADA.match(texto))
+    return bool(RE_BOTON.match(texto) or RE_BOTON_LLEGADA.match(texto) or RE_BOTON_CIERRE.match(texto))
 
 
 def agendar(conv, inicio_texto, nombre, personas=None) -> dict:
@@ -171,7 +200,7 @@ def _avisar_encargado(visita) -> None:
         cuando = etiqueta(visita.inicio)
         personas = f' ({visita.personas} personas)' if visita.personas else ''
         services_pendientes.registrar_pendiente(
-            titulo=f'Visita por confirmar: {visita.nombre}, {cuando}', rol='ENCARGADO', tipo='VISITA',
+            titulo=f'Visita por confirmar: {visita.nombre}, {cuando}', rol=rol_ventas(), tipo='VISITA',
             detalle=f'{visita.nombre}{personas} pidió conocer la Quinta el {cuando}.',
             objeto=visita, vence_en=min(timezone.now() + PLAZO_CONFIRMAR, visita.inicio),
             clave_idempotencia=_clave_aviso(visita, 'por_confirmar'))
@@ -179,7 +208,7 @@ def _avisar_encargado(visita) -> None:
                       lineas=[cuando.capitalize(), *_datos_equipo(visita)],
                       cierre='¿La recibes? Al confirmar le aviso al cliente.', enlace=_admin_url(visita))
         botones = [(id_boton(visita.pk, 'ok'), 'Confirmar'), (id_boton(visita.pk, 'no'), 'No puedo')]
-        for destino in telefonos_aviso('ENCARGADO'):
+        for destino in destinos_ventas():
             services_pendientes._enviar_aviso(destino, texto, botones=botones,
                                               clave=_clave_aviso(visita, f'aviso:{destino}'))
     except Exception:
@@ -225,7 +254,9 @@ def decidir(visita_id: int, aceptar: bool, *, quien: str = '', usuario=None) -> 
         visita.decidida_en = timezone.now()
         visita.decidida_por = (quien or (usuario.get_username() if usuario else ''))[:100]
         visita.updated_by = usuario
-        visita.save(update_fields=['estado', 'decidida_en', 'decidida_por', 'updated_by', 'updated_at'])
+        if aceptar and visita.vendedor_id is None:
+            visita.vendedor = _vendedor_que_decide(quien, usuario)
+        visita.save(update_fields=['estado', 'decidida_en', 'decidida_por', 'updated_by', 'vendedor', 'updated_at'])
     pendiente = Pendiente.objects.filter(clave_idempotencia=_clave_aviso(visita, 'por_confirmar')).first()
     if pendiente is not None:
         services_pendientes.resolver(pendiente, usuario)
@@ -290,10 +321,16 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
     llegada = RE_BOTON_LLEGADA.match(texto)
     if llegada:
         return _atender_llegada(telefono, int(llegada.group(1))) if telefono else None
+    cierre = RE_BOTON_CIERRE.match(texto)
+    if cierre:
+        # Cerrar una visita (Atendida / No llegó): solo desde el teléfono activo de VENTAS o de DIRECCION.
+        if not telefono or telefono not in ({telefono_de('VENTAS'), telefono_de('DIRECCION')} - {''}):
+            return None
+        return cerrar_visita(int(cierre.group(1)), cierre.group(2) == 'ok', quien=telefono)
     coincide = RE_BOTON.match(texto)
     if not coincide:
         return None
-    autorizados = {telefono_de('ENCARGADO'), telefono_de('DIRECCION')} - {''}
+    autorizados = {telefono_de('ENCARGADO'), telefono_de('DIRECCION'), telefono_de('VENTAS')} - {''}
     if not telefono or telefono not in autorizados:
         return None
     return decidir(int(coincide.group(1)), coincide.group(2) == 'ok', quien=telefono)
@@ -339,7 +376,7 @@ def _avisar_equipo(visita, aviso: Aviso, evento: str, excepto: str = '') -> int:
     por número y evento. Devuelve a cuántos salió."""
     enviados = 0
     excepto = normalizar_telefono_wa(excepto) if excepto else ''
-    for destino in telefonos_aviso('ENCARGADO'):
+    for destino in destinos_ventas():
         if destino == excepto:
             continue
         comm = services_pendientes._enviar_aviso(destino, aviso, clave=_clave_aviso(visita, f'{evento}:{destino}'))
@@ -375,18 +412,24 @@ def enviar_recordatorios(hoy=None) -> int:
 
 
 def _resumen_equipo(dia) -> None:
+    """Agenda de la víspera. Con responsable de VENTAS le llega siempre (sin visitas: «Mañana no tienes
+    visitas agendadas») y trae el teléfono de cada visitante; sin él, solo al encargado y solo si hay visitas."""
     visitas = list(Visita.objects.filter(estado__in=Visita.ACTIVAS, inicio__date=dia).order_by('inicio'))
+    de_ventas = responsable('VENTAS') is not None
+    enlace = (getattr(settings, 'ERP_PORTAL_URL', '') or '').rstrip('/') + reverse('admin:comunicacion_visita_changelist')
     if not visitas:
-        return
-    lineas = [f"{hora(v.inicio)} · {v.nombre}{f' ({v.personas} personas)' if v.personas else ''}"
-              f"{'' if v.estado == 'CONFIRMADA' else ' · POR CONFIRMAR'}" for v in visitas]
-    total = len(visitas)
-    aviso = Aviso(titulo=f"Mañana {'tienes 1 visita' if total == 1 else f'tienes {total} visitas'}",
-                  categoria='Visita', lineas=lineas,
-                  cierre='Te aviso 45 min antes de cada una y cuando el cliente me diga que llegó.',
-                  enlace=(getattr(settings, 'ERP_PORTAL_URL', '') or '').rstrip('/')
-                  + reverse('admin:comunicacion_visita_changelist'))
-    for destino in telefonos_aviso('ENCARGADO'):
+        if not de_ventas:
+            return
+        aviso = Aviso(titulo='Mañana no tienes visitas agendadas', categoria='Visita', enlace=enlace)
+    else:
+        lineas = [f"{hora(v.inicio)} · {v.nombre}{f' ({v.personas} personas)' if v.personas else ''}"
+                  f"{f' · Tel. {telefono_legible(v.telefono)}' if de_ventas else ''}"
+                  f"{'' if v.estado == 'CONFIRMADA' else ' · POR CONFIRMAR'}" for v in visitas]
+        total = len(visitas)
+        aviso = Aviso(titulo=f"Mañana {'tienes 1 visita' if total == 1 else f'tienes {total} visitas'}",
+                      categoria='Visita', lineas=lineas,
+                      cierre='Te aviso 45 min antes de cada una y cuando el cliente me diga que llegó.', enlace=enlace)
+    for destino in destinos_ventas():
         services_pendientes._enviar_aviso(destino, aviso, clave=f'visitas:{dia}:resumen:{destino}')
 
 
@@ -414,4 +457,143 @@ def enviar_avisos_previos(ahora=None) -> int:
                 lineas=[f'Hora: {hora(visita.inicio)}', *_datos_equipo(visita)],
                 cierre='Que alguien esté listo para recibirla. Te aviso si me escribe que ya llegó.',
                 enlace=_admin_url(visita)), 'previo_equipo')
+    return enviados
+
+
+# ───────────────────────────── Personal de ventas (Issue #505) ───────────────
+
+def _vendedor_que_decide(quien: str = '', usuario=None):
+    """Empleado de Ventas activo que confirma/atiende: el de ese teléfono o usuario, o el único."""
+    from nomina.models import Empleado
+    from ventas.services_atribucion import vendedor_de_usuario
+
+    vendedores = [e for e in Empleado.objects.filter(puesto='VENTAS', activo=True).order_by('pk')
+                  if e.fecha_baja is None or e.fecha_baja >= timezone.localdate()]
+    tel = normalizar_telefono_wa(quien) if any(c.isdigit() for c in str(quien or '')) else ''
+    if tel:
+        for e in vendedores:
+            if normalizar_telefono_wa(e.telefono) == tel:
+                return e
+    propio = vendedor_de_usuario(usuario)
+    if propio is not None:
+        return propio
+    return vendedores[0] if len(vendedores) == 1 else None
+
+
+def validar_manual(visita, usuario) -> list:
+    """Reglas del alta manual: mismo horario y unicidad que Kooxi, pero con cita de hoy permitida. Devuelve
+    avisos (lista de textos) o lanza `ValidationError`. Un superusuario puede agendar sobre un día ocupado."""
+    if not (visita.nombre or '').strip():
+        raise ValidationError('Falta el nombre de quien visita.')
+    telefono = normalizar_telefono_wa(visita.telefono)
+    if not telefono:
+        raise ValidationError('El teléfono no es válido.')
+    visita.telefono = telefono
+    ahora = timezone.now()
+    if visita.inicio is None or visita.inicio <= ahora:
+        raise ValidationError('La cita debe ser a una hora futura.')
+    libres = horarios_disponibles(ahora, dias=HORIZONTE_MANUAL_DIAS, limite=None,
+                                  min_anticipacion=timedelta(0), excluir_ocupados=False)
+    if visita.inicio not in libres:
+        raise ValidationError('Ese horario no está en los bloques de visita o ya está ocupado.')
+    existentes = Visita.objects.filter(telefono=telefono, estado__in=Visita.ACTIVAS, inicio__gte=ahora)
+    if visita.pk:
+        existentes = existentes.exclude(pk=visita.pk)
+    if existentes.exists():
+        raise ValidationError('Esta persona ya tiene una visita agendada.')
+    avisos = []
+    dia = timezone.localdate(visita.inicio)
+    if dia in dias_ocupados(dia, dia):
+        if not getattr(usuario, 'is_superuser', False):
+            raise ValidationError('La Quinta está ocupada ese día (evento, pasadía o bloqueo): elige otro.')
+        avisos.append('Ese día la Quinta está ocupada (evento, pasadía o bloqueo); se agendó por ser Dirección.')
+    return avisos
+
+
+def registrar_manual(visita, usuario) -> list:
+    """Guarda una visita dada de alta a mano. La crea CONFIRMADA si quien la captura es la vendedora; si no,
+    POR_CONFIRMAR con el aviso normal. Devuelve avisos para mostrar; lanza `ValidationError`."""
+    from ventas.services_atribucion import vendedor_de_usuario
+
+    avisos = validar_manual(visita, usuario)
+    vendedora = vendedor_de_usuario(usuario)
+    visita.origen = 'MANUAL'
+    visita.created_by = usuario if getattr(usuario, 'pk', None) else None
+    visita.updated_by = visita.created_by
+    if vendedora is not None:
+        visita.vendedor = vendedora
+        visita.estado = 'CONFIRMADA'
+        visita.decidida_en = timezone.now()
+        visita.decidida_por = usuario.get_username()[:100]
+    else:
+        visita.estado = 'POR_CONFIRMAR'
+    try:
+        with transaction.atomic():
+            visita.save()
+    except IntegrityError:
+        raise ValidationError('Ese horario se acaba de ocupar.') from None
+    if visita.estado == 'POR_CONFIRMAR':
+        _avisar_encargado(visita)
+    return avisos
+
+
+def cerrar_visita(visita_id: int, atendida: bool, *, quien: str = '', usuario=None) -> Optional[str]:
+    """Registra cómo le fue a una visita confirmada ya pasada: Atendida (atribuye la venta y es lo que paga)
+    o No llegó. Una sola vez; None si no existe o ya estaba cerrada."""
+    with transaction.atomic():
+        visita = Visita.objects.select_for_update().filter(pk=visita_id).first()
+        if visita is None or visita.resultado:
+            return None
+        if visita.estado != 'CONFIRMADA':
+            return 'Esa visita no estaba confirmada, así que no se puede cerrar.'
+        ahora = timezone.now()
+        if visita.inicio > ahora:
+            return 'Todavía no es la hora de esa visita.'
+        usuario = usuario if getattr(usuario, 'pk', None) else None
+        visita.resultado = 'ATENDIDA' if atendida else 'NO_LLEGO'
+        visita.atendida_en = ahora
+        visita.atendida_por = usuario
+        visita.updated_by = usuario
+        if visita.vendedor_id is None:
+            visita.vendedor = _vendedor_que_decide(quien, usuario)
+        visita.save(update_fields=['resultado', 'atendida_en', 'atendida_por', 'updated_by', 'vendedor',
+                                   'updated_at'])
+    pendiente = Pendiente.objects.filter(clave_idempotencia=_clave_aviso(visita, 'cierre')).first()
+    if pendiente is not None:
+        services_pendientes.resolver(pendiente, usuario)
+    if atendida:
+        try:
+            from ventas.services_atribucion import atribuir_por_visita
+            atribuir_por_visita(visita)
+        except Exception:
+            logger.exception('Visitas: no se pudo atribuir tras cerrar la visita %s', visita.pk)
+        return f'✅ Listo, quedó registrada como atendida la visita de {visita.nombre}.'
+    return f'✅ Listo, quedó registrado que {visita.nombre} no llegó a su visita.'
+
+
+def enviar_cierres(ahora=None) -> int:
+    """Pasada la hora de la cita, pregunta a VENTAS cómo le fue (botones Atendida / No llegó). Solo si hay
+    responsable de VENTAS; una vez por visita y número (clave de idempotencia). Devuelve cuántos salieron."""
+    ahora = ahora or timezone.now()
+    if responsable('VENTAS', timezone.localdate(ahora)) is None:
+        return 0
+    enviados = 0
+    pendientes = Visita.objects.filter(
+        estado='CONFIRMADA', resultado='', inicio__lte=ahora - CIERRE_DESPUES,
+        inicio__gte=ahora - CIERRE_HASTA).order_by('inicio')
+    for visita in pendientes:
+        if Pendiente.objects.filter(clave_idempotencia=_clave_aviso(visita, 'cierre')).exists():
+            continue  # ya se preguntó: una sola vez por visita
+        services_pendientes.registrar_pendiente(
+            titulo=f'Cerrar la visita de {visita.nombre}, {etiqueta(visita.inicio)}', rol='VENTAS', tipo='VISITA',
+            detalle=f'¿{visita.nombre} se presentó? Márcalo en Admin → Visitas.', objeto=visita,
+            clave_idempotencia=_clave_aviso(visita, 'cierre'))
+        aviso = Aviso(titulo=f'¿Se presentó {visita.nombre}?', categoria='Visita',
+                      lineas=[etiqueta(visita.inicio).capitalize(), *_datos_equipo(visita)],
+                      cierre='Solo las visitas atendidas se pagan.', enlace=_admin_url(visita))
+        botones = [(f'vres:{visita.pk}:ok', 'Atendida'), (f'vres:{visita.pk}:no', 'No llegó')]
+        for destino in destinos_ventas(timezone.localdate(ahora)):
+            comm = services_pendientes._enviar_aviso(destino, aviso, botones=botones,
+                                                     clave=_clave_aviso(visita, f'cierre:{destino}'))
+            enviados += int(comm is not None)
     return enviados
