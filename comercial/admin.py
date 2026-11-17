@@ -22,6 +22,7 @@ from core_erp import impuestos
 from core_erp.admin_filtros import con_titulo, filtro_periodo
 from core_erp.admin_utils import confirmar_accion_destructiva
 from core_erp.descargas import url_descarga
+from ventas.permisos import es_vendedor
 
 from .admin_filtros import (
     CfdiCompraFilter,
@@ -34,6 +35,7 @@ from .admin_filtros import (
     PaqueteBarraFilter,
     PolizaCompraFilter,
     ServicioProductoFilter,
+    VendedorFilter,
 )
 from .choices import PosicionLanding
 from .models import (
@@ -395,6 +397,21 @@ class ProductoAdmin(admin.ModelAdmin):
         }),
     )
 
+    def get_list_display(self, request):
+        columnas = super().get_list_display(request)
+        return [c for c in columnas if c != 'costo_display'] if es_vendedor(request.user) else columnas
+
+    def get_fieldsets(self, request, obj=None):
+        conjuntos = super().get_fieldsets(request, obj)
+        if not es_vendedor(request.user):
+            return conjuntos
+        return [(titulo, {**opc, 'fields': tuple(c for c in opc['fields'] if c != 'margen_ganancia')})
+                for titulo, opc in conjuntos]
+
+    def get_inlines(self, request, obj):
+        # Los componentes y paquetes exponen la receta (costos); el personal de ventas no los ve.
+        return [] if es_vendedor(request.user) else super().get_inlines(request, obj)
+
     @admin.display(description='')
     def miniatura(self, obj):
         if obj.imagen_promocional:
@@ -648,6 +665,11 @@ class ItemCotizacionInline(admin.TabularInline):
     fields = ('producto', 'insumo', 'descripcion', 'cantidad', 'precio_unitario', 'subtotal')
     readonly_fields = ('subtotal',)
 
+    def get_fields(self, request, obj=None):
+        campos = super().get_fields(request, obj)
+        # El insumo es un concepto de costo: el personal de ventas cotiza con productos.
+        return [c for c in campos if c != 'insumo'] if es_vendedor(request.user) else campos
+
     # Una venta del sistema anterior no se recalcula: editar sus conceptos
     # dejaría el total desalineado sin aviso.
     def has_add_permission(self, request, obj=None):
@@ -659,11 +681,32 @@ class ItemCotizacionInline(admin.TabularInline):
     def has_delete_permission(self, request, obj=None):
         return not (obj and obj.es_historica) and super().has_delete_permission(request, obj)
 
+def candado_vendedor_en_pagos(form_base, request):
+    """El grupo Vendedor no registra reembolsos ni condonaciones (Issue #505): se valida en el
+    formulario, no solo se oculta."""
+    class FormConCandado(form_base):
+        def clean(self):
+            datos = super().clean()
+            if es_vendedor(request.user):
+                tipo = datos.get('tipo') or getattr(self.instance, 'tipo', None)
+                if tipo == 'REEMBOLSO':
+                    raise forms.ValidationError('Los reembolsos los registra Dirección.')
+                if datos.get('metodo') == 'CONDONACION':
+                    raise forms.ValidationError('Las condonaciones y cortesías las autoriza Dirección.')
+            return datos
+    return FormConCandado
+
+
 class PagoInline(admin.TabularInline):
     model = Pago
     extra = 0
     fields = ('fecha_pago', 'monto', 'concepto', 'metodo', 'referencia', 'notas', 'usuario', 'created_at')
     readonly_fields = ('usuario', 'created_at')
+
+    def get_formset(self, request, obj=None, **kwargs):
+        formset = super().get_formset(request, obj, **kwargs)
+        formset.form = candado_vendedor_en_pagos(formset.form, request)
+        return formset
 
 def autocompletar_cotizacion_nueva(obj):
     """Rellena horario y nombre_evento al crear una Cotizacion desde el admin.
@@ -708,9 +751,10 @@ def autocompletar_cotizacion_nueva(obj):
 class CotizacionAdmin(admin.ModelAdmin):
     inlines = [ItemCotizacionInline, PagoInline, PlanPagoResumenInline]
     list_display = ('folio_cotizacion', 'evento_display', 'fecha_display', 'servicio_badge', 'estado_badge',
-                    'pago_badge', 'identificacion_badge', 'total_display', 'saldo_display', 'acciones_display')
+                    'pago_badge', 'identificacion_badge', 'total_display', 'saldo_display',
+                    'acciones_display')
     list_filter = (FechaEventoFilter, ('tipo_servicio', con_titulo('Servicio')), 'estado', PagoCotizacionFilter,
-                   IdentificacionFilter, PaqueteBarraFilter)
+                   IdentificacionFilter, PaqueteBarraFilter, VendedorFilter)
     search_fields = ('id', 'cliente__nombre', 'cliente__rfc', 'nombre_evento')
     search_help_text = 'Folio, cliente, RFC o nombre del evento'
     columnas_texto = ('evento_display',)
@@ -726,7 +770,7 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('Información del Evento', {
-            'fields': ('cliente', 'tipo_servicio', 'tipo_evento', 'nombre_evento', 'notas_cliente', 'como_nos_encontro', 'fecha_evento', 'fecha_salida', 'hora_inicio', 'hora_fin', 'num_personas', 'estado'),
+            'fields': ('cliente', 'tipo_servicio', 'tipo_evento', 'nombre_evento', 'notas_cliente', 'como_nos_encontro', 'fecha_evento', 'fecha_salida', 'hora_inicio', 'hora_fin', 'num_personas', 'estado', 'atendido_por'),
             'description': '"Fecha de salida" solo aplica a Hospedaje (checkout, varias noches); en el resto de los servicios déjala vacía.',
         }),
         ('Configuración de Barra', {
@@ -749,7 +793,33 @@ class CotizacionAdmin(admin.ModelAdmin):
                        'identificacion_revisada_por', 'identificacion_revisada_en', 'enviar_email_btn'),
         }),
     )
-    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por')
+
+    # Costos y márgenes que el grupo Vendedor no ve (Issue #505).
+    CAMPOS_DE_COSTO = ('factor_utilidad_barra', 'resumen_barra_html')
+    SECCIONES_DE_COSTO = ('Insumos Base (Costos)',)
+
+    def get_fieldsets(self, request, obj=None):
+        conjuntos = super().get_fieldsets(request, obj)
+        if not es_vendedor(request.user):
+            return conjuntos
+        return [(titulo, {**opc, 'fields': tuple(c for c in opc['fields'] if c not in self.CAMPOS_DE_COSTO)})
+                for titulo, opc in conjuntos if titulo not in self.SECCIONES_DE_COSTO]
+
+    def get_actions(self, request):
+        acciones = super().get_actions(request)
+        if es_vendedor(request.user):
+            return {}
+        if not request.user.is_superuser:
+            acciones.pop('asignar_vendedor', None)
+        return acciones
+
+    @admin.display(description='Atendido por')
+    def atendido_por(self, obj):
+        if not obj or not obj.vendedor_id:
+            return ui.vacio()
+        return format_html('{} {}', obj.vendedor.nombre,
+                           ui.badge(obj.get_vendedor_origen_display(), ui.NEUTRO, categoria=True))
 
     # --- COLUMNAS DE LA LISTA (Issue #322: componentes de core_erp/admin_ui) ---
     TONOS_ESTADO = {
@@ -766,7 +836,7 @@ class CotizacionAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         # `pagado_neto` en una sola consulta: antes cada fila hacía dos
         # agregados propios para pintar la columna "Pagado".
-        qs = super().get_queryset(request).select_related('cliente')
+        qs = super().get_queryset(request).select_related('cliente', 'vendedor')
         return Cotizacion.anotar_pagado_neto(qs)
 
     @staticmethod
@@ -780,7 +850,9 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     @admin.display(description='Evento', ordering='nombre_evento')
     def evento_display(self, obj):
-        return format_html('{}<div class="qkt-sub">{}</div>', obj.nombre_evento or '—', obj.cliente)
+        # El vendedor va en la misma celda (no en una columna más): la lista debe caber en 1440 px sin scroll.
+        atiende = format_html('<div class="qkt-sub">Atiende: {}</div>', obj.vendedor.nombre) if obj.vendedor_id else ''
+        return format_html('{}<div class="qkt-sub">{}</div>{}', obj.nombre_evento or '—', obj.cliente, atiende)
 
     @admin.display(description='Fecha', ordering='fecha_evento')
     def fecha_display(self, obj):
@@ -843,6 +915,9 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     # --- SAVE MODEL CON VALIDACIONES ---
     def save_model(self, request, obj, form, change):
+        if es_vendedor(request.user) and obj.estado == 'CANCELADA':
+            messages.error(request, "Las cancelaciones las autoriza Dirección.")
+            return
         if change:
             old_obj = Cotizacion.objects.filter(pk=obj.pk).values(
                 'estado', 'identificacion_revisada',
@@ -893,6 +968,12 @@ class CotizacionAdmin(admin.ModelAdmin):
             obj.usuario = request.user
             autocompletar_cotizacion_nueva(obj)
         super().save_model(request, obj, form, change)
+        if not change:
+            # El alta en el admin por una persona de ventas la deja como atendida por ella.
+            from ventas.services_atribucion import atribuir, vendedor_de_usuario
+            vendedor = vendedor_de_usuario(request.user)
+            if vendedor is not None:
+                atribuir(obj, vendedor, 'COTIZO', usuario=request.user)
 
     def save_formset(self, request, form, formset, change):
         instances = formset.save(commit=False)
@@ -1005,7 +1086,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         from .models import Descuento, DescuentoAplicado
         from .services_descuentos import DescuentoService
 
-        if not request.user.has_perm('comercial.change_cotizacion'):
+        if not request.user.has_perm('comercial.change_cotizacion') or es_vendedor(request.user):
             messages.error(request, "No tienes permiso para aplicar descuentos.")
             return redirect('admin:comercial_cotizacion_changelist')
 
@@ -1056,7 +1137,29 @@ class CotizacionAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/comercial/cotizacion/descuentos.html', context)
 
-    actions = ['evaluar_descuentos_aplicables', 'aplicar_beneficio_referido']
+    actions = ['evaluar_descuentos_aplicables', 'aplicar_beneficio_referido', 'asignar_vendedor']
+
+    @admin.action(description='Asignar vendedor (Dirección)')
+    def asignar_vendedor(self, request, queryset):
+        """Cambio manual de atribución, también sobre ventas ya confirmadas. Solo superusuario."""
+        from nomina.models import Empleado
+        from ventas.services_atribucion import atribuir
+
+        if not request.user.is_superuser:
+            raise PermissionDenied
+        vendedores = Empleado.objects.filter(puesto='VENTAS', activo=True).order_by('nombre')
+        elegido = vendedores.filter(pk=request.POST.get('vendedor') or None).first()
+        if request.POST.get('confirmar') == 'si' and elegido is not None:
+            hechas = sum(1 for c in queryset if atribuir(c, elegido, 'MANUAL', usuario=request.user, forzar=True))
+            self.message_user(request, f'{hechas} cotización(es) atribuida(s) a {elegido.nombre}.',
+                              messages.SUCCESS if hechas else messages.WARNING)
+            return None
+        return TemplateResponse(request, 'admin/comercial/cotizacion/asignar_vendedor.html', {
+            **self.admin_site.each_context(request),
+            'title': 'Asignar vendedor', 'queryset': queryset, 'vendedores': vendedores,
+            'opts': self.model._meta, 'action_checkbox_name': helpers.ACTION_CHECKBOX_NAME,
+            'action_name': request.POST.get('action'),
+        })
 
     @admin.action(description="Aplicar beneficio de referido")
     def aplicar_beneficio_referido(self, request, queryset):
@@ -1168,6 +1271,12 @@ class PagoAdmin(CambiarCuentaBancariaMixin, admin.ModelAdmin):
     date_hierarchy = 'fecha_pago'
     actions = ['registrar_reembolso', 'reembolsar_en_openpay', 'cambiar_cuenta_bancaria']
 
+    def get_form(self, request, obj=None, **kwargs):
+        return candado_vendedor_en_pagos(super().get_form(request, obj, **kwargs), request)
+
+    def get_actions(self, request):
+        return {} if es_vendedor(request.user) else super().get_actions(request)
+
     def get_readonly_fields(self, request, obj=None):
         # La cuenta bancaria solo se elige al crear; cambiarla después reapunta la póliza (otro flujo).
         extra = ('cuenta_bancaria',) if obj else ()
@@ -1215,7 +1324,7 @@ class PagoAdmin(CambiarCuentaBancariaMixin, admin.ModelAdmin):
     def comision_display(self, obj):
         return ui.monto(obj.comision_tpv) if obj.comision_tpv else ui.vacio(numerico=True)
 
-    @admin.display(description='Registró', ordering='created_at')
+    @admin.display(description='Registrado por', ordering='created_at')
     def registro_display(self, obj):
         cuando = date_format(timezone.localtime(obj.created_at), 'd M Y H:i') if obj.created_at else ''
         return format_html('{}<div class="qkt-sub">{}</div>', obj.usuario or '—', cuando)

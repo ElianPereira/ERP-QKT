@@ -25,11 +25,11 @@ def _construir_eventos_calendario(fecha_inicio, fecha_fin):
     # Hospedaje de varias noches puede haber comenzado antes de fecha_inicio.
     cotizaciones = rango_traslapa(
         Cotizacion.objects.exclude(estado='CANCELADA'), fecha_inicio, fecha_fin,
-    ).select_related('cliente')
+    ).select_related('cliente', 'vendedor')
 
     for c in cotizaciones:
         evento = {
-            'title': f"{c.cliente.nombre} - {c.nombre_evento}",
+            'title': f"{c.cliente.nombre} - {c.nombre_evento}" + (f" · {c.vendedor.nombre}" if c.vendedor_id else ''),
             'start': c.fecha_evento.strftime("%Y-%m-%d"),
             'color': '#27ae60' if c.estado == 'CONFIRMADA' else '#95a5a6',
             'url': f'/admin/comercial/cotizacion/{c.id}/change/',

@@ -27,6 +27,7 @@ from django.utils.crypto import salted_hmac
 from comunicacion.services import normalizar_telefono_wa
 from comunicacion.services_responsables import rol_de_telefono, telefono_de
 from core_erp import impuestos
+from ventas.services_atribucion import usuario_de_telefono
 
 from .models import Cotizacion, Pago, ReporteTerminal
 
@@ -160,6 +161,7 @@ def confirmar(telefono: str, texto: str) -> Optional[Resultado]:
                 return Resultado(motivo)
             pago = Pago(
                 cotizacion=cot, tipo='INGRESO', concepto='VENTA', metodo=METODO, monto=reporte.monto,
+                usuario=usuario_de_telefono(tel),
                 fecha_pago=timezone.localdate(), referencia=f'TERMINAL-WA-{reporte.pk}',
                 notas=f'Reportado por WhatsApp desde {reporte.rol} {reporte.telefono}')
             pago.full_clean()

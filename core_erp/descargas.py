@@ -53,6 +53,12 @@ ARCHIVOS_PROTEGIDOS = {
     ('comunicacion', 'fotoinspeccion', 'archivo'),
     ('cumplimiento', 'vigencia', 'documento'),
     ('cumplimiento', 'documentoexpediente', 'archivo'),
+    ('nomina', 'documentoempleado', 'archivo'),
+}
+
+# Archivos que, además del permiso `view` del modelo, exigen un permiso propio.
+PERMISOS_EXTRA = {
+    ('nomina', 'documentoempleado'): 'nomina.ver_expediente_empleado',
 }
 
 
@@ -92,6 +98,9 @@ def descargar_archivo_privado(request, app_label, model_name, campo, pk):
     # El permiso de lectura del modelo, no solo is_staff: si mañana se separan
     # los grupos por área (SEC-AUTHZ-001), esta vista queda alineada sola.
     if not request.user.has_perm(f'{app_label}.view_{model_name}'):
+        raise Http404
+    permiso_extra = PERMISOS_EXTRA.get((app_label.lower(), model_name.lower()))
+    if permiso_extra and not request.user.has_perm(permiso_extra):
         raise Http404
 
     objeto = get_object_or_404(modelo, pk=pk)

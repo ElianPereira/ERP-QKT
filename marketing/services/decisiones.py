@@ -32,6 +32,7 @@ from django.utils import timezone
 from comunicacion.models import Hallazgo, MensajeWhatsApp
 from comunicacion.services_direccion import dinero
 from comunicacion.services_pendientes import _base_url, registrar_pendiente
+from comunicacion.services_responsables import rol_ventas
 from indicadores.services.base import D0, ETIQUETAS, q2, venta_neta
 
 from ..models import Anuncio, Campana, Decision, GastoPublicitario, Lead, ParametroMarketing, SnapshotKPI
@@ -602,7 +603,7 @@ def revisar_sin_respuesta(ahora: Optional[datetime] = None, parametros: Optional
             continue
         minutos = int(espera.total_seconds() // 60)
         pendiente = registrar_pendiente(
-            titulo=f'Prospecto sin respuesta hace {minutos} min', rol='ENCARGADO', tipo='PROSPECTO',
+            titulo=f'Prospecto sin respuesta hace {minutos} min', rol=rol_ventas(), tipo='PROSPECTO',
             severidad='URGENTE', objeto=lead, clave_idempotencia=f'mkt_sin_respuesta:{lead.pk}',
             detalle=(f'Prospecto: {lead.nombre or "sin nombre"} (teléfono terminado en {lead.telefono[-4:]})\n'
                      f'Canal: {lead.get_fuente_display()}\n'

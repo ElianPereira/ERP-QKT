@@ -115,3 +115,7 @@ def moneda(valor) -> str:
         return ''
     signo = '-' if numero < 0 else ''
     return f'{signo}${abs(numero):,.2f}'
+
+# Titular del negocio en los documentos que lo nombran (contratos, acuerdos).
+# Los contratos lo llevan escrito en su plantilla; los documentos nuevos lo toman de aquí.
+TITULAR_LEGAL = 'ELIAN DE JESÚS PEREIRA CEH'

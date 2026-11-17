@@ -33,7 +33,7 @@ from .services_responsables import SIN_DESTINO, responsable, rol_de_telefono, te
 logger = logging.getLogger(__name__)
 
 PLAZO_HORAS = {'URGENTE': 2, 'NORMAL': 24}
-ROLES_RESUMEN = ('ENCARGADO', 'DIRECCION', 'CONTADOR', 'COMPRAS')
+ROLES_RESUMEN = ('ENCARGADO', 'DIRECCION', 'CONTADOR', 'COMPRAS', 'VENTAS')
 VENTANA_WA = timedelta(hours=24)
 INTERVALO_COPIA = timedelta(hours=1)
 MAS_VIEJOS = 5
@@ -237,10 +237,10 @@ def escalar_vencidos(ahora=None) -> int:
     una sola vez, con aviso urgente."""
     ahora = ahora or timezone.now()
     escalados = 0
-    for pendiente in Pendiente.objects.filter(estado='ABIERTO', rol='ENCARGADO', escalado_en__isnull=True,
-                                              vence_en__lt=ahora):
+    for pendiente in Pendiente.objects.filter(estado='ABIERTO', rol__in=('ENCARGADO', 'VENTAS'),
+                                              escalado_en__isnull=True, vence_en__lt=ahora):
         filas = Pendiente.objects.filter(
-            pk=pendiente.pk, estado='ABIERTO', rol='ENCARGADO', escalado_en__isnull=True,
+            pk=pendiente.pk, estado='ABIERTO', rol__in=('ENCARGADO', 'VENTAS'), escalado_en__isnull=True,
         ).update(rol='DIRECCION', escalado_en=ahora, updated_at=ahora)
         if not filas:
             continue

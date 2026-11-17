@@ -22,6 +22,7 @@ from core_erp.horarios import formato_hora_ampm
 from . import services_pendientes
 from .models import Pendiente, Visita
 from .services import normalizar_telefono_wa
+from .services_responsables import rol_ventas
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,9 @@ def avisar_llegada(conv=None, situacion=None, minutos=None) -> dict:
         else:
             cierre = f"Viene a {datos['que']}. Que alguien lo reciba."
         services_pendientes.registrar_pendiente(
-            titulo=titulo[:200], rol='ENCARGADO', tipo='LLEGADA', severidad='URGENTE',
+            # Una visita la recibe Ventas; una reservación o quien llega sin cita, el encargado (Issue #505).
+            titulo=titulo[:200], rol=rol_ventas() if isinstance(objeto, Visita) else 'ENCARGADO',
+            tipo='LLEGADA', severidad='URGENTE',
             detalle='\n'.join([*[ln for ln in datos['lineas'] if ln], cierre]), objeto=objeto,
             vence_en=ahora + timedelta(minutes=30), clave_idempotencia=f'{clave}{ahora:%Y%m%d%H%M%S}',
             etiqueta_ok='Ya lo recibí' if situacion == 'ya_llego' else 'Enterado')
