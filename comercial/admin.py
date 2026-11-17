@@ -1218,8 +1218,48 @@ class CotizacionAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/comercial/cotizacion/contrato_form.html', context)
 
+
+class CambiarCuentaBancariaMixin:
+    """Acción «Cambiar cuenta bancaria» (herramienta de corrección, no un paso del flujo normal) para un admin
+    de Pago o MovimientoDeposito; el servicio es `contabilidad.services_cuenta_bancaria`."""
+
+    @admin.action(description="Cambiar cuenta bancaria (reapunta la póliza)")
+    def cambiar_cuenta_bancaria(self, request, queryset):
+        """Paso intermedio propio: elige la cuenta y confirma; solo con `confirmar=si` y cuenta válida escribe."""
+        from contabilidad.models import CuentaBancaria
+        from contabilidad.services_cuenta_bancaria import CambioCuentaRechazado, cambiar_cuenta_bancaria
+
+        opts = self.model._meta
+        if not request.user.has_perm(f'{opts.app_label}.change_{opts.model_name}'):
+            raise PermissionDenied
+        cuentas = CuentaBancaria.objects.filter(activa=True, cuenta_contable__isnull=False)
+        elegida = cuentas.filter(pk=request.POST.get('cuenta') or 0).first()
+        if request.POST.get('confirmar') == 'si' and elegida:
+            cambiados = 0
+            for obj in queryset:
+                try:
+                    cambiar_cuenta_bancaria(obj, elegida, request.user)
+                    cambiados += 1
+                except CambioCuentaRechazado as e:
+                    self.message_user(request, f"{opts.verbose_name.capitalize()} #{obj.pk}: {e}", messages.ERROR)
+            if cambiados:
+                self.message_user(request, f"{cambiados} {opts.verbose_name}(s) cambiado(s) a «{elegida}».",
+                                  messages.SUCCESS)
+            return None
+        contexto = {
+            **self.admin_site.each_context(request),
+            'title': "Cambiar cuenta bancaria",
+            'queryset': queryset,
+            'cuentas': cuentas,
+            'opts': opts,
+            'action_checkbox_name': helpers.ACTION_CHECKBOX_NAME,
+            'action_name': request.POST.get('action'),
+        }
+        return TemplateResponse(request, 'admin/comercial/pago/cambiar_cuenta_bancaria.html', contexto)
+
+
 @admin.register(Pago)
-class PagoAdmin(admin.ModelAdmin):
+class PagoAdmin(CambiarCuentaBancariaMixin, admin.ModelAdmin):
     change_list_template = "admin/comercial/pago/change_list.html"
     list_display = ('cotizacion', 'tipo_badge', 'concepto_display', 'fecha_display', 'monto_display', 'metodo',
                     'comision_display', 'referencia', 'registro_display')
@@ -1322,38 +1362,6 @@ class PagoAdmin(admin.ModelAdmin):
         for err in errores:
             self.message_user(request, err, messages.ERROR)
     registrar_reembolso.short_description = "Registrar reembolso (espejo del pago)"
-
-    @admin.action(description="Cambiar cuenta bancaria (reapunta la póliza)")
-    def cambiar_cuenta_bancaria(self, request, queryset):
-        """Paso intermedio propio: elige la cuenta y confirma; solo con `confirmar=si` y cuenta válida escribe."""
-        from contabilidad.models import CuentaBancaria
-        from contabilidad.services_cuenta_bancaria import CambioCuentaRechazado, cambiar_cuenta_bancaria
-
-        if not request.user.has_perm('comercial.change_pago'):
-            raise PermissionDenied
-        cuentas = CuentaBancaria.objects.filter(activa=True, cuenta_contable__isnull=False)
-        elegida = cuentas.filter(pk=request.POST.get('cuenta') or 0).first()
-        if request.POST.get('confirmar') == 'si' and elegida:
-            cambiados = 0
-            for pago in queryset:
-                try:
-                    cambiar_cuenta_bancaria(pago, elegida, request.user)
-                    cambiados += 1
-                except CambioCuentaRechazado as e:
-                    self.message_user(request, f"Pago #{pago.pk}: {e}", messages.ERROR)
-            if cambiados:
-                self.message_user(request, f"{cambiados} pago(s) cambiado(s) a «{elegida}».", messages.SUCCESS)
-            return None
-        contexto = {
-            **self.admin_site.each_context(request),
-            'title': "Cambiar cuenta bancaria",
-            'queryset': queryset,
-            'cuentas': cuentas,
-            'opts': self.model._meta,
-            'action_checkbox_name': helpers.ACTION_CHECKBOX_NAME,
-            'action_name': request.POST.get('action'),
-        }
-        return TemplateResponse(request, 'admin/comercial/pago/cambiar_cuenta_bancaria.html', contexto)
 
     @confirmar_accion_destructiva(
         "¿Reembolsar en Openpay los pagos seleccionados? Dispara el refund "
@@ -1790,7 +1798,7 @@ class MovimientoDepositoInline(admin.TabularInline):
     model = MovimientoDeposito
     extra = 0
     can_delete = False
-    fields = ('fecha', 'tipo', 'monto', 'metodo', 'referencia', 'desglose', 'created_by')
+    fields = ('fecha', 'tipo', 'monto', 'metodo', 'cuenta_bancaria', 'referencia', 'desglose', 'created_by')
     readonly_fields = fields
 
     def has_add_permission(self, request, obj=None):
@@ -1798,6 +1806,25 @@ class MovimientoDepositoInline(admin.TabularInline):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(MovimientoDeposito)
+class MovimientoDepositoAdmin(CambiarCuentaBancariaMixin, admin.ModelAdmin):
+    """Solo para corregir la cuenta bancaria de un movimiento (no aparece en el menú: se llega desde el
+    depósito). Los movimientos son inmutables: sin alta, cambio ni borrado."""
+    list_display = ('deposito', 'fecha', 'tipo', 'monto', 'metodo', 'cuenta_bancaria')
+    list_filter = ('tipo', 'cuenta_bancaria')
+    search_fields = ('deposito__cotizacion__cliente__nombre', 'referencia')
+    actions = ['cambiar_cuenta_bancaria']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False if obj else super().has_change_permission(request, obj)
 
 
 @admin.register(DepositoGarantia)

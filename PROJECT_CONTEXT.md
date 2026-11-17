@@ -72,6 +72,19 @@ cliente, ambos servidos con templates Django normales.
 Las pólizas se generan automáticamente vía signals cuando se registran
 `Pago`s, comisiones de Openpay, etc. (ver `contabilidad/signals.py`).
 
+**Dos cuentas BBVA** (Issue #499): «Ingresos» (`BANCO_PRINCIPAL`, 102.02.01) recibe cobros y «Pagadora» (102.02.04) paga
+pauta, suscripciones, proveedores y reembolsos. `CuentaBancaria.rol` (AMBOS/COBRO/PAGO) es solo una preferencia por
+defecto (`CuentaBancaria.pagadora(unidad)`); `Pago`/`MovimientoDeposito.cuenta_bancaria` vacío = `BANCO_PRINCIPAL` y el
+resolver único es `signals.cuenta_banco_de()`. **El estado de cuenta manda**: una compra que aparece en el estado de otra
+cuenta propia se reapunta sola (`services_compras.reapuntar_banco_de_compra`). **Cuenta puente 102.03**
+(`TRASPASOS_EN_TRANSITO`): cada punta de un fondeo entre cuentas propias se asienta contra ella y su saldo ≠ 0 = traspaso
+con una punta pendiente; BBVA imprime «TRASPASO CUENTAS PROPIAS» en las dos cuentas y solo el abono nombra el origen, así
+que el cargo se empareja con ese abono (`services_reglas_banco.asentar_fondeos`, `parejas_de_fondeos`; sin pareja espera
+al otro estado y, con ambos procesados, es retiro del dueño). **Cambio manual de cuenta** (corrección, no flujo normal):
+`services_cuenta_bancaria.cambiar_cuenta_bancaria`, acción «Cambiar cuenta bancaria» en Pagos y en Movimientos de depósito
+(`/admin/comercial/movimientodeposito/`, fuera del menú). `CuentaBancaria.operaba_en(anio, mes)` evita avisos y bloqueos
+por cuentas que aún no existían en un mes. El flujo de efectivo muestra los traspasos aparte.
+
 ### `nomina`
 
 `Empleado`, `ReciboNomina`.

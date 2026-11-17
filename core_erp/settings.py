@@ -744,6 +744,8 @@ JAZZMIN_SETTINGS = {
         # quien sí quiera costear por receta.
         "comercial.Insumo",
         "comercial.SubProducto",
+        # Solo para la acción «Cambiar cuenta bancaria» sobre un movimiento de depósito (corrección).
+        "comercial.MovimientoDeposito",
         # El catálogo plano de Productos se reorganizó en 3 submódulos por
         # línea de negocio (Eventos/Pasadía/Hospedaje, ver
         # admin_lineas_negocio.py) — son proxies del mismo modelo/tabla, así

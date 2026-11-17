@@ -245,6 +245,18 @@ class CuentaBancaria(models.Model):
             elegida = activas[0] if len(activas) == 1 else None
         return elegida if elegida and elegida.cuenta_contable_id else None
 
+    def operaba_en(self, anio, mes):
+        """¿La cuenta ya existía en ese mes? Usa la fecha del saldo inicial (su apertura) y, si no la tiene,
+        la de alta; es verdadera si esa fecha es menor o igual al último día del mes."""
+        import calendar
+        from datetime import date
+
+        from django.utils import timezone
+        desde = self.fecha_saldo_inicial
+        if desde is None and self.created_at:
+            desde = timezone.localtime(self.created_at).date()
+        return desde is None or desde <= date(anio, mes, calendar.monthrange(anio, mes)[1])
+
     @property
     def saldo_actual(self):
         """Calcula saldo actual: inicial + movimientos contables."""

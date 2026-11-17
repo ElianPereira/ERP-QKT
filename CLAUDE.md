@@ -324,6 +324,32 @@ salvo que queden obsoletas.
   alta al Empleado de Ventas, sus Condiciones y su `Responsable` VENTAS; capturar `HorarioVisita`; asignar el permiso del expediente;
   correr `python manage.py crear_grupos_permisos` (no corre solo en el deploy; crea el grupo `Vendedor`).
 
+- 2026-11-16 — **Segunda cuenta BBVA: correcciones tras revisar los PR 1–3** (Issue #499; **mueve contabilidad**: revisión del
+  propietario antes del merge; sin zonas restringidas; **sin migración**). **(1) Fondeos «TRASPASO CUENTAS PROPIAS»**: BBVA imprime ese
+  concepto en las dos cuentas y solo el abono dice el origen, así que el cargo de la otra cuenta caía en `RETIROS_DUENO` (regla del
+  sistema `TRASPAS*|RETIRO*`). `services_reglas_banco.asentar_fondeos` (en `emparejar_y_asentar`, justo después de
+  `asentar_traspasos_propios`, nunca antes de `_emparejar_automaticamente`): `parejas_de_fondeos(cuenta)` empareja cada cargo con un abono
+  del mismo importe, ±1 día, de otra cuenta propia que `es_traspaso_propio` atribuye a esa cuenta, uno a uno por (fecha, id) y **sin estado
+  guardado** (se recalcula de los datos, por eso reprocesar un PDF no duplica). Con pareja → puente. Sin pareja y con alguna otra cuenta
+  (que ya operaba ese mes) sin estado PROCESADO que cubra fecha−1 y fecha+1 → **espera sin asiento ni pendiente** y `aplicar_reglas` lo
+  excluye; con las otras cuentas procesadas → sigue a `aplicar_reglas` (retiro del dueño, como antes). `reintentar_fondeos_cruzados`
+  (al final de cada estado) repite el proceso en los estados del mismo mes y del anterior de las otras cuentas, y `autocorregir_fondeos`
+  reapunta a la puente un cargo ya APLICADO en retiros cuando aparece su pareja (`services_traspasos.reapuntar_a_puente`, mismos candados que
+  `reclasificar_traspasos`). **Trampa que salió en tests**: el reintento cruzado no puede llamar `aplicar_reglas` sobre todo el otro
+  estado (clasificaba como aportación un abono que su propio estado aún no había asentado): solo evalúa los cargos liberados
+  (`solo_ids`). Con una sola cuenta activa nada cambia. **(2)** `_patrones_de_cuenta`: la cuenta dentro de la CLABE es `clabe[7:17]`, no
+  `[-10:]`. **(3)** `CuentaBancaria.operaba_en(anio, mes)` (fecha del saldo inicial o, si falta, de alta) lo usan `avisar_si_no_llego` y
+  `_hay_estados_del_mes`: una cuenta dada de alta en noviembre ya no abre el aviso URGENTE de octubre ni bloquea la conciliación de pauta.
+  Efecto en tests: una cuenta creada «hoy» ya no opera en meses pasados, así que los tests de esos meses fijan `fecha_saldo_inicial`.
+  **(4)** `cambiar_cuenta_bancaria` rechaza (sin escribir) si hay pólizas APLICADAS y ninguna línea en la cuenta actual. **(5)**
+  `sustituir_asientos_provisionales_por_cfdi` reapunta la compra (otra cuenta propia) **antes** de cancelar la provisional; si el reapunte
+  se rechaza, no cancela y sigue. **(6)** El flujo de efectivo (`FlujoEfectivoService`, PDF y Excel) muestra aparte «Traspasos entre
+  cuentas propias» (pólizas con línea en la puente), los saca de entradas/salidas y por origen, y deja intactos los saldos por cuenta.
+  **(7)** Acción «Cambiar cuenta bancaria» también en «Movimientos de depósito» (`MovimientoDepositoAdmin`, oculto del menú con
+  `hide_models`; mixin `CambiarCuentaBancariaMixin` compartido con Pagos) y documentación en `PROJECT_CONTEXT.md`. **Pendiente**: cuando
+  llegue el primer PDF real de la Pagadora (1–2 de diciembre) añadir su texto exacto a `FondeoTraspasoCuentasPropiasTest` y ajustar
+  `TEXTO_FONDEO` si difiere. El parser de BBVA no se tocó; no se pudo comprobar el formato contra un PDF real.
+
 - 2026-11-16 — **Segunda cuenta BBVA, PR 3 de 3: cambio manual de cuenta y pauta con dos cuentas** (Issue #499; **mueve contabilidad**:
   revisión del propietario; apilado sobre el PR 2; sin zonas restringidas; **sin migración**). `services_cuenta_bancaria.cambiar_cuenta_bancaria
   (obj, nueva, usuario)` cambia la cuenta de un `Pago` o `MovimientoDeposito` ya registrado: bajo `select_for_update` reapunta la línea de
