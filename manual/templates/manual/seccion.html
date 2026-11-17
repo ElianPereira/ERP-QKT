@@ -1,0 +1,26 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<div class="qkt-pagina qkt-pagina--angosta">
+    <div class="qkt-pagina__cabecera">
+        <p class="qkt-campo__ayuda"><a href="{% url 'manual:indice' %}">Manual</a> &rsaquo; {{ seccion.capitulo }}</p>
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-book-open" aria-hidden="true"></i> {{ seccion.titulo }}</h1>
+        <p class="qkt-pagina__intro">Para: {{ roles_etiquetas|join:", " }}</p>
+    </div>
+
+    {% if seccion.borrador %}
+    <div class="qkt-aviso qkt-aviso--alerta">
+        <span class="qkt-aviso__titulo">Borrador</span>
+        Esta sección tiene preguntas por confirmar con la dirección ({{ seccion.pendientes|length }}). Solo la ves tú; nadie más la recibe, ni en pantalla ni en PDF, hasta que se resuelvan.
+    </div>
+    {% endif %}
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cuerpo manual-contenido">{{ cuerpo|safe }}</div>
+    </div>
+
+    <nav class="manual-navegacion" aria-label="Navegación del manual">
+        {% if anterior %}<a class="qkt-btn qkt-btn--secundario" href="{% url 'manual:seccion' anterior.slug %}"><i class="fas fa-arrow-left" aria-hidden="true"></i> {{ anterior.titulo }}</a>{% else %}<span></span>{% endif %}
+        {% if siguiente %}<a class="qkt-btn qkt-btn--secundario" href="{% url 'manual:seccion' siguiente.slug %}">{{ siguiente.titulo }} <i class="fas fa-arrow-right" aria-hidden="true"></i></a>{% endif %}
+    </nav>
+</div>
+{% endblock %}

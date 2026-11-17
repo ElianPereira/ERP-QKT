@@ -1095,6 +1095,46 @@ body.login-page .main-footer { display: none; }
 @media (max-width: 991px) { .qkt-plan { grid-template-columns: minmax(0, 1fr); } }
 
 /* ============================================================
+   MANUAL (Issue #507): índice, buscador y lectura de una sección.
+   Los componentes (.manual-bloque…) los emite manual/services.py.
+   ============================================================ */
+.manual-barra { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; margin-bottom: 16px; }
+.manual-buscador, .manual-descarga { display: flex; gap: 8px; align-items: center; }
+.manual-buscador { flex: 1 1 18em; }
+.manual-buscador input[type=search] { flex: 1; min-width: 0; height: var(--ui-h-md); padding: 0 10px; font-size: 14px;
+    color: var(--ui-text); background: var(--ui-surface-2); border: 1px solid var(--ui-line); border-radius: var(--ui-r-sm); }
+.manual-descarga select { height: var(--ui-h-md); font-size: 14px; color: var(--ui-text); background: var(--ui-surface-2);
+    border: 1px solid var(--ui-line); border-radius: var(--ui-r-sm); }
+.manual-lista { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.9; }
+.manual-resultado { margin: 0 0 12px; font-size: 14px; }
+.manual-fragmento { color: var(--ui-text-2); }
+.manual-navegacion { display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; margin-top: 16px; }
+.manual-contenido { font-size: 14px; line-height: 1.7; color: var(--ui-text); }
+.manual-contenido h2 { font-size: 16px; font-weight: 600; margin: 22px 0 8px; color: var(--ui-green-text); }
+.manual-contenido h3 { font-size: 14px; font-weight: 600; margin: 16px 0 6px; }
+.manual-contenido p { margin: 0 0 10px; }
+.manual-contenido ul, .manual-contenido ol { margin: 0 0 12px; padding-left: 22px; }
+.manual-contenido li { margin-bottom: 6px; }
+.manual-contenido ol > li::marker { font-weight: 700; color: var(--ui-green-text); }
+.manual-contenido img { display: block; max-width: 100%; height: auto; margin: 8px 0 12px;
+    border: 1px solid var(--ui-line); border-radius: var(--ui-r-md); }
+.manual-contenido table { width: 100%; margin: 6px 0 12px; border-collapse: collapse; font-size: 13px; }
+.manual-contenido th, .manual-contenido td { padding: 6px 8px; border: 1px solid var(--ui-line) !important; text-align: left; }
+.manual-bloque { margin: 12px 0; padding: 10px 14px; border-left: 3px solid var(--ui-neutro) !important; background: var(--ui-neutro-bg); border-radius: var(--ui-r-sm); }
+.manual-bloque > :last-child { margin-bottom: 0; }
+.manual-bloque__titulo { margin: 0 0 4px; font-weight: 600; }
+.manual-bloque--correcto { border-left-color: var(--ui-exito) !important; background: var(--ui-exito-bg); }
+.manual-bloque--nohagas { border-left-color: var(--ui-error) !important; background: var(--ui-error-bg); }
+.manual-bloque--quehacer { border-left-color: var(--ui-alerta) !important; background: var(--ui-alerta-bg); }
+.manual-bloque--nota { border-left-color: var(--ui-info) !important; background: var(--ui-info-bg); }
+.manual-pendiente { padding: 0 4px; border-radius: 3px; color: var(--ui-alerta); background: var(--ui-alerta-bg); font-weight: 600; }
+@media (max-width: 767px) {
+    .manual-descarga { width: 100%; }
+    .manual-descarga .qkt-btn { flex: 1; }
+    .manual-navegacion .qkt-btn { width: 100%; white-space: normal; height: auto; min-height: var(--ui-h-md); padding: 6px 10px; }
+}
+
+/* ============================================================
    MÓVIL (Issue #417). Toda pantalla nueva se revisa a 390 px
    (core_erp/test_movil.py). Aquí vive lo que antes estaba en
    mobile_fix_v4.css, con los tokens del sistema.

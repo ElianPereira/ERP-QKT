@@ -1,0 +1,88 @@
+{% extends "documentos/_base.html" %}
+{% comment %}
+Manual de procedimientos (Issue #507). Variables: capitulos [(nombre, [(seccion, html)])],
+manual_etiqueta, version, fecha, descargado_por, pie_css, incluye_borradores.
+{% endcomment %}
+{% block variante %}cliente{% endblock %}
+{% block pie %}{{ pie_css|safe }}{% endblock %}
+
+{% block estilos %}
+  .manual-portada { text-align: center; padding-top: 5cm; page-break-after: always; }
+  .manual-portada img { height: 90px; margin-bottom: 20px; }
+  .manual-portada h1 { font-family: 'Cormorant Garamond', serif; font-size: 34pt; font-weight: 600; color: var(--verde-oscuro); }
+  .manual-portada .manual-para { font-size: 14pt; margin-top: 10px; color: var(--tinta-2); }
+  .manual-portada .manual-datos { margin-top: 2.4cm; font-size: 9pt; color: var(--tinta-3); line-height: 1.9; }
+  .manual-indice { page-break-after: always; }
+  .manual-indice h2 { font-size: 15pt; color: var(--verde-oscuro); margin-bottom: 10px; }
+  .manual-indice h3 { font-size: 10pt; margin: 10px 0 3px; color: var(--tinta); }
+  .manual-indice ul { list-style: none; }
+  .manual-indice li { margin: 2px 0 2px 10px; }
+  .manual-indice a { color: var(--tinta); text-decoration: none; }
+  .manual-indice a::after { content: leader('.') target-counter(attr(href url), page); color: var(--tinta-3); }
+  .manual-capitulo { page-break-before: always; }
+  .manual-capitulo > h2 { font-size: 18pt; color: var(--verde-oscuro); border-bottom: 2px solid var(--verde); padding-bottom: 4px; margin-bottom: 8px; }
+  .manual-seccion { margin-top: 14px; }
+  .manual-seccion > h3 { font-size: 13pt; color: var(--verde-oscuro); margin-bottom: 4px; page-break-after: avoid; }
+  .manual-contenido { font-size: 9.5pt; line-height: 1.55; }
+  .manual-contenido p { margin: 5px 0; }
+  .manual-contenido h4 { font-size: 10.5pt; margin: 10px 0 3px; color: var(--tinta); page-break-after: avoid; }
+  .manual-contenido ul, .manual-contenido ol { margin: 5px 0 5px 18px; }
+  .manual-contenido li { margin: 3px 0; }
+  .manual-contenido ol > li::marker { font-weight: 700; color: var(--verde-oscuro); }
+  .manual-contenido table { width: 100%; border-collapse: collapse; margin: 6px 0; }
+  .manual-contenido th, .manual-contenido td { border: 1px solid var(--linea); padding: 3px 6px; text-align: left; }
+  .manual-contenido th { background: var(--fondo-suave); }
+  .manual-contenido img { max-width: 100%; border: 1px solid var(--linea); margin: 4px 0; }
+  .manual-bloque { margin: 8px 0; padding: 6px 10px; border-left: 3px solid var(--neutro); background: var(--neutro-bg); page-break-inside: avoid; }
+  .manual-bloque p { margin: 3px 0; }
+  .manual-bloque__titulo { font-weight: 700; }
+  .manual-bloque--correcto { border-left-color: var(--exito); background: var(--exito-bg); }
+  .manual-bloque--nohagas { border-left-color: var(--error); background: var(--error-bg); }
+  .manual-bloque--quehacer { border-left-color: var(--alerta); background: var(--alerta-bg); }
+  .manual-bloque--nota { border-left-color: var(--info); background: var(--info-bg); }
+  .manual-pendiente { background: var(--alerta-bg); color: var(--alerta); font-weight: 600; }
+  .manual-borrador { color: var(--alerta); font-weight: 700; font-size: 8pt; }
+{% endblock %}
+
+{% block encabezado %}
+  <section class="manual-portada">
+    <img src="{{ doc_logo }}" alt="">
+    <h1>{{ titulo }}</h1>
+    <div class="manual-para">{{ doc_empresa }}</div>
+    <div class="manual-para">Manual: {{ manual_etiqueta }}</div>
+    <div class="manual-datos">
+      Versión {{ version }}<br>
+      {{ fecha|date:"d/m/Y" }}<br>
+      Descargado por {{ descargado_por }}<br>
+      {% if incluye_borradores %}<span class="manual-borrador">Incluye secciones en borrador (pendientes de confirmar)</span>{% endif %}
+    </div>
+  </section>
+
+  <section class="manual-indice">
+    <h2>Contenido</h2>
+    {% for capitulo, secciones in capitulos %}
+      <h3>{{ capitulo }}</h3>
+      <ul>
+        {% for seccion, html in secciones %}
+          <li><a href="#s-{{ seccion.slug }}">{{ seccion.titulo }}{% if seccion.borrador %} (borrador){% endif %}</a></li>
+        {% endfor %}
+      </ul>
+    {% empty %}
+      <p>No hay secciones para este manual.</p>
+    {% endfor %}
+  </section>
+{% endblock %}
+
+{% block contenido %}
+  {% for capitulo, secciones in capitulos %}
+    <section class="manual-capitulo">
+      <h2>{{ capitulo }}</h2>
+      {% for seccion, html in secciones %}
+        <article class="manual-seccion" id="s-{{ seccion.slug }}">
+          <h3>{{ seccion.titulo }}{% if seccion.borrador %} <span class="manual-borrador">BORRADOR</span>{% endif %}</h3>
+          <div class="manual-contenido">{{ html|safe }}</div>
+        </article>
+      {% endfor %}
+    </section>
+  {% endfor %}
+{% endblock %}

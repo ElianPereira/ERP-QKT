@@ -121,7 +121,7 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing` |
+| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing manual` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |

@@ -94,6 +94,7 @@ INSTALLED_APPS = [
     'operaciones',
     'cumplimiento',
     'marketing',
+    'manual',
     'django_otp',
     'django_otp.plugins.otp_totp',
 ]
@@ -727,6 +728,7 @@ JAZZMIN_SETTINGS = {
         "marketing.Referido":                "fas fa-user-friends",
         "marketing.AutorizacionMedios":      "fas fa-camera",
         "marketing.ResenaGoogle":            "fas fa-star",
+        "manual.DescargaManual":             "fas fa-book-reader",
     },
 
     # Modelos que siguen registrados en el admin (autocompletado, popups de
@@ -762,6 +764,7 @@ JAZZMIN_SETTINGS = {
         {"name": "Cartera",            "url": "cartera_cxc"},
         {"name": "Reportes",           "url": "reportes:selector"},
         {"name": "Indicadores",        "url": "indicadores:tablero",     "permissions": ["indicadores.view_metamensual"]},
+        {"name": "Manual",             "url": "manual:indice"},
         {"name": "Cerrar sesión",      "url": "/admin/logout/",          "new_window": False},
     ],
 
@@ -876,6 +879,10 @@ JAZZMIN_SETTINGS = {
         "marketing.ResenaGoogle",
         "marketing.ParametroMarketing",
 
+        # === MANUAL ===
+        "manual",
+        "manual.DescargaManual",
+
         # === ADMINISTRACIÓN ===
         "auth",
         "auth.user",
@@ -909,6 +916,11 @@ JAZZMIN_SETTINGS = {
             {"name": "Plan del año", "url": "indicadores:plan", "icon": "fas fa-th-large",
              "permissions": ["indicadores.view_metamensual"]},
         ],
+        "manual": [{
+            "name": "Manual",
+            "url": "manual:indice",
+            "icon": "fas fa-book-open",
+        }],
         "marketing": [{
             "name": "Marketing",
             "url": "marketing:tablero",
