@@ -200,7 +200,7 @@ class AislamientoPorRolTest(TestCase):
         self.assertIn('jicama', texto)
         for ajena in ('papaya', 'mango', 'sandia', 'aguacate', 'platano', 'guayaba', 'tamarindo'):
             self.assertNotIn(ajena, texto)
-        self.assertIn('Descargado por ven', texto)
+        self.assertIn('Descargado por ven', texto)   # portada y pie de página
 
     def test_anonimo_y_no_staff_van_al_login(self, _):
         for ruta in (reverse('manual:indice'), reverse('manual:seccion', args=['para-todos']), reverse('manual:pdf')):

@@ -4,7 +4,7 @@ Manual de procedimientos (Issue #507). Variables: capitulos [(nombre, [(seccion,
 manual_etiqueta, version, fecha, descargado_por, pie_css, incluye_borradores.
 {% endcomment %}
 {% block variante %}cliente{% endblock %}
-{% block pie %}{{ pie_css|safe }}{% endblock %}
+{% block pie %}"{{ pie_css|safe }}"{% endblock %}
 
 {% block estilos %}
   .manual-portada { text-align: center; padding-top: 5cm; page-break-after: always; }

@@ -9,7 +9,7 @@ Tu usuario es personal: lo que se haga con él queda registrado a tu nombre. Est
 ### Entrar
 
 1. Abre **erp.quintakooxtanil.com** en tu navegador, de preferencia en el celular o la computadora que usas siempre.
-2. Escribe tu usuario y tu contraseña y toca **Iniciar sesión**.
+2. Escribe tu usuario y tu contraseña y toca **Entrar**.
 3. Al terminar de trabajar, usa **Cerrar sesión** en la barra de arriba. No basta con cerrar la pestaña.
 
 ![Pantalla de inicio de sesión](img/entrar-acceso.webp)
