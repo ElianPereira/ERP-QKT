@@ -667,6 +667,8 @@ JAZZMIN_SETTINGS = {
         "nomina":                           "fas fa-money-check-alt",
         "nomina.Empleado":                  "fas fa-user-tie",
         "nomina.ReciboNomina":              "fas fa-file-contract",
+        "nomina.DocumentoEmpleado":         "fas fa-folder-open",
+        "nomina.CondicionesPago":           "fas fa-handshake",
 
         # FACTURACIÓN
         "facturacion":                      "fas fa-stamp",
@@ -823,6 +825,8 @@ JAZZMIN_SETTINGS = {
         "nomina.Empleado",
         "nomina.ReciboNomina",
         "nomina.AprobacionNomina",
+        "nomina.DocumentoEmpleado",
+        "nomina.CondicionesPago",
 
         # === FACTURACIÓN ===
         "facturacion",

@@ -1,0 +1,120 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos qkt_horarios %}
+{% comment %}
+Propuesta de colaboración. Texto aprobado por el propietario y su abogado
+(docs/ventas/propuesta_referencia.html). Las cifras, nombres y calendarios salen
+de las CondicionesPago del registro (nomina/services_documentos.py): ningún monto
+vive en esta plantilla, y un componente no capturado no aparece.
+{% endcomment %}
+
+{% block variante %}cliente{% endblock %}
+{% block subtitulo %}Eventos, pasadías y hospedaje{% endblock %}
+{% block filtros %}
+{% if empleado_nombre %}<span><b>Para:</b> {{ empleado_nombre }}</span>{% endif %}
+<span><b>Puesto:</b> {{ condiciones.puesto_descripcion }}</span>
+<span><b>Vigente desde:</b> {{ condiciones.vigente_desde|date:"d/m/Y" }}</span>
+{% endblock %}
+{% block generado %}<span><b>Emisión:</b> {{ doc_generado_en|date:"d/m/Y" }}</span>{% endblock %}
+
+{% block contenido %}
+<p class="doc-texto">Queremos invitarte a ser la persona que recibe a quienes quieren conocer la Quinta y los acompaña hasta que su reservación queda hecha. Este documento resume en qué consiste la colaboración y cómo se paga.</p>
+
+{% if cifras %}
+<div class="doc-kpis">
+  {% for c in cifras %}
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ c.valor }}</div><div class="doc-kpi-etiqueta">{{ c.texto }}</div></div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="doc-seccion">Qué harías</div>
+<div class="doc-condiciones">
+  <ul>{% for r in responsabilidades %}<li>{{ r }}</li>{% endfor %}</ul>
+</div>
+
+{% if condiciones.pago_visita %}
+<div class="doc-seccion">Visitas</div>
+<p class="doc-texto">Todas las visitas son con cita; nadie llega sin avisar. Se agendan dentro de dos bloques:</p>
+<table class="doc-tabla">
+  <thead><tr><th>Bloque</th><th>Horario</th></tr></thead>
+  <tbody>{% for b in horario %}<tr><td>{{ b.bloque }}</td><td>{{ b.horas }}</td></tr>{% endfor %}</tbody>
+</table>
+<p class="doc-texto">Un día antes recibes por WhatsApp la lista de citas del día siguiente, con la hora, el nombre de la persona y cuántos asisten. Por ejemplo, el domingo por la tarde te llega la agenda del lunes.</p>
+<p class="doc-texto">Cada visita en la que el visitante se presenta se paga a {{ condiciones.pago_visita|moneda }}, contrate o no, hasta {{ condiciones.tope_visitas_semana }} visitas pagadas por semana ({{ tope_semanal|moneda }}). Las visitas adicionales de esa semana no tienen pago por visita, pero si esa persona contrata, tu comisión se paga completa.</p>
+{% endif %}
+
+{% if escalones %}
+<div class="doc-seccion">Comisión por contratación</div>
+<p class="doc-texto">Cuenta como contratación cada evento, pasadía u hospedaje que el cliente aparta contigo: porque tú hiciste su cotización, o porque le mostraste la Quinta y después reservó.</p>
+<table class="doc-tabla">
+  <thead><tr><th>Contrataciones en el año</th><th class="num">Comisión por cada una</th></tr></thead>
+  <tbody>{% for e in escalones %}<tr><td>{{ e.rango }}</td><td class="num">{{ e.monto|moneda }}</td></tr>{% endfor %}</tbody>
+</table>
+<p class="doc-texto">El conteo es por año calendario y empieza de nuevo cada 1 de enero. No hay tope: después de la contratación {{ ultimo_escalon.ejemplo }} la comisión sigue siendo de {{ ultimo_escalon.monto|moneda }}.</p>
+{% endif %}
+{% if porcentaje_extras %}
+<p class="doc-texto"><b>Servicios extras.</b> Además de la comisión fija, recibes el {{ porcentaje_extras }} % del valor, antes de IVA, de todo lo que el cliente agregue a su reservación: servicios adicionales, horas extra y personas extra.</p>
+{% endif %}
+
+{% if condiciones.pago_fijo or condiciones.tarifa_hora %}
+<div class="doc-seccion">Pago fijo</div>
+<table class="doc-tabla">
+  <tbody>
+    {% if condiciones.pago_fijo %}<tr><td>Pago fijo ({{ condiciones.get_pago_fijo_periodo_display|lower }})</td><td class="num">{{ condiciones.pago_fijo|moneda }}</td></tr>{% endif %}
+    {% if condiciones.tarifa_hora %}<tr><td>Tarifa por hora</td><td class="num">{{ condiciones.tarifa_hora|moneda }}</td></tr>{% endif %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if calendario %}
+<div class="doc-seccion">Cuándo se paga</div>
+<table class="doc-tabla">
+  <thead><tr><th>Concepto</th><th>Corte</th><th>Día de pago</th></tr></thead>
+  <tbody>{% for c in calendario %}<tr><td>{{ c.concepto }}</td><td>{{ c.corte }}</td><td>{{ c.pago }}</td></tr>{% endfor %}</tbody>
+</table>
+{% endif %}
+
+{% if ejemplo %}
+<p class="doc-texto">La comisión se gana en la misma proporción en que el cliente va pagando. Si aparta con la mitad, se te paga la mitad de la comisión; cuando liquida, la otra mitad. Si el cliente paga en varias parcialidades, tu comisión se reparte igual.</p>
+<table class="doc-tabla">
+  <thead><tr><th colspan="2">Ejemplo: evento de {{ ejemplo.precio|moneda }} con {{ ejemplo.extras_con_iva|moneda }} de servicios extras</th></tr></thead>
+  <tbody>
+    <tr><td>Comisión fija{% if ejemplo.primeras %} (contratación dentro de las primeras {{ ejemplo.primeras }}){% endif %}</td><td class="num">{{ ejemplo.fija|moneda }}</td></tr>
+    {% if ejemplo.extras %}<tr><td>{{ porcentaje_extras }} % de los extras ({{ ejemplo.base_extras|moneda }} antes de IVA)</td><td class="num">{{ ejemplo.extras|moneda }}</td></tr>{% endif %}
+    <tr class="total"><td>Comisión total de la contratación</td><td class="num">{{ ejemplo.total|moneda }}</td></tr>
+  </tbody>
+</table>
+<table class="doc-tabla">
+  <thead><tr><th>Momento</th><th class="num">Paga el cliente</th><th class="num">Recibes</th></tr></thead>
+  <tbody>
+    <tr><td>Aparta su fecha con el 50 %</td><td class="num">{{ ejemplo.mitad_cliente|moneda }}</td><td class="num">{{ ejemplo.mitad_comision|moneda }}</td></tr>
+    <tr><td>Liquida antes del evento</td><td class="num">{{ ejemplo.mitad_cliente|moneda }}</td><td class="num">{{ ejemplo.resto_comision|moneda }}</td></tr>
+  </tbody>
+</table>
+{% endif %}
+
+<div class="doc-seccion">Cancelaciones y término de la colaboración</div>
+<div class="doc-condiciones">
+  <ul>
+    <li>Si un cliente cancela y se le devuelve dinero, tu comisión se ajusta a lo que la Quinta conserva. Nunca se te pide regresar dinero: la diferencia se descuenta de tus comisiones siguientes, como máximo el {{ tope_compensacion }} % de cada pago.</li>
+    <li>Si la cancelación es por causa de la Quinta, conservas la comisión que ya recibiste.</li>
+    <li>El pago por visita no se descuenta por una cancelación.</li>
+    {% if ultimo_escalon %}<li>Una contratación cancelada con devolución total deja de contar para llegar a la número {{ ultimo_escalon.desde }}.</li>{% endif %}
+    <li>Si la colaboración termina, se te paga lo ganado hasta ese día. Los pagos que los clientes hagan después ya no generan comisión.</li>
+  </ul>
+</div>
+
+<div class="doc-seccion">Cómo llevas tu cuenta</div>
+<div class="doc-condiciones">
+  <ul>
+    <li>El sistema registra a tu nombre cada cotización que elaboras, cada cobro que capturas y cada visita que atiendes.</li>
+    <li>Tienes una pantalla propia con tus visitas, tus contrataciones, cuántas llevas en el año y cuánto tienes ganado, pagado y por cobrar.</li>
+    <li>Con cada pago recibes un estado de cuenta con el detalle, contratación por contratación.</li>
+    <li>Los avisos de citas y de clientes nuevos te llegan por WhatsApp desde el número de la Quinta.</li>
+  </ul>
+</div>
+
+{% if condiciones.notas %}<div class="doc-aviso doc-aviso--info">{{ condiciones.notas }}</div>{% endif %}
+{% endblock %}
+
+{% block notas %}Documento informativo. Las condiciones definitivas, incluida la fecha de inicio, se formalizan por escrito entre ambas partes. {{ doc_generado_en|date:"F \d\e Y" }}.{% endblock %}
