@@ -278,6 +278,27 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-11-17 — **Consentimiento de privacidad automático para cotizaciones capturadas en el admin** (Issue #506; sin zonas restringidas:
+  no se tocó `legal/`, `views_openpay.py`, `services_openpay.py` ni `contabilidad/services.py`; **sin migraciones**). Principio: cero clics
+  para el personal. `comercial/services_consentimiento.py`: `tiene_aceptacion_vigente(cliente)` = alguna `AceptacionLegal` del cliente cuyo
+  snapshot trae la **versión vigente del Aviso** (versión nueva = se vuelve a pedir una vez; sin Aviso publicado no se exige nada, así los
+  tests viejos no cambian). **(1)** El PDF y los dos correos de cotización llevan el enlace al Aviso en el pie. **(2) Portal**: tarjeta
+  arriba de todo con las mismas casillas del cotizador (parcial compartido `comercial/_consentimiento_casillas.html`, sin texto nuevo) y
+  `POST /mi-evento/<token>/privacidad/` (`@rate_limit`, CSRF, origen `PORTAL_CLIENTE` con IP y navegador). Sin aceptar puede ver todo; el pago en
+  línea, la identificación, la firma y las solicitudes quedan deshabilitados en la plantilla y **firmar y solicitar cambio/cancelación se
+  rechazan también en el servidor**; el pago sigue con su propia casilla de checkout (`views_openpay.py` intacto). **(3) WhatsApp**: tarea diaria
+  `pedir_consentimientos_pendientes` (10:20 en el programador) para clientes con cotización CONFIRMADA o con pago de una cotización abierta
+  (nunca históricas, cerradas, expiradas, canceladas ni condonaciones). Con ventana abierta manda `MENSAJE_CONSENTIMIENTO` de Kooxi con
+  tres botones; sin ventana, la plantilla `META_WA_PLANTILLA_CONSENTIMIENTO` (texto en `docs/whatsapp_plantilla_consentimiento.md`; sin ella no
+  se manda y se reintenta al día siguiente). Botones `con:<cliente>:ok|promo|no:<versión>`: valen solo desde el teléfono del cliente, un botón
+  de una versión vieja no registra, y la evidencia es `AceptacionLegal` origen `WHATSAPP` con el `wamid`. Una sola solicitud por cliente y
+  versión (`consentimiento:<cliente>:<versión>:whatsapp`; un envío fallido libera su clave); no es promoción: no mira MARKETING ni
+  `BajaWhatsApp`. **(4) Visibilidad**: columna y filtro «Privacidad» en Clientes, el dato en la cotización y una línea en el resumen del
+  lunes solo si hay confirmadas sin aceptar. **(5) Única excepción humana**: cliente confirmado sin teléfono ni correo = `Pendiente` NORMAL
+  idempotente para el ENCARGADO (la bandeja es por rol, no por usuario; el detalle nombra a quien capturó). Los mensajes usan `ComunicacionCliente`
+  tipo `OTRO` para no agregar una opción nueva (evita una migración). Pendiente del propietario: someter la plantilla en Meta, definir
+  `META_WA_PLANTILLA_CONSENTIMIENTO` en `web` y Programador, y el visto bueno del abogado a reutilizar en el portal el texto del cotizador.
+
 
 - 2026-11-16 — **Segunda cuenta BBVA, PR 3 de 3: cambio manual de cuenta y pauta con dos cuentas** (Issue #499; **mueve contabilidad**:
   revisión del propietario; apilado sobre el PR 2; sin zonas restringidas; **sin migración**). `services_cuenta_bancaria.cambiar_cuenta_bancaria

@@ -121,4 +121,4 @@
 <div class="doc-sello">Sello digital: {{ cotizacion.id }}|{{ cotizacion.fecha_evento|date:"Ymd" }}|{{ cotizacion.created_at|date:"His" }}|{{ cotizacion.usuario.username|default:"SYS" }}|QKT-SECURE</div>
 {% endblock %}
 
-{% block notas %}Gracias por confiar en {{ doc_empresa }}. {% include "documentos/_contacto.html" %}{% endblock %}
+{% block notas %}Gracias por confiar en {{ doc_empresa }}. {% include "documentos/_contacto.html" %}<br>Tus datos se tratan conforme a nuestro Aviso de Privacidad: quintakooxtanil.com/aviso-de-privacidad{% endblock %}

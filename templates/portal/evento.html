@@ -10,6 +10,15 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'IBM Plex Sans', sans-serif; background: #f5f3ef; color: #2c2b28; }
         
+        /* Tarjeta de aceptación del Aviso de Privacidad (Issue #506) */
+        .card-consentimiento { border: 2px solid #F5C518; }
+        .card-consentimiento p { font-size: 13px; color: #5a5852; margin-bottom: 12px; line-height: 1.5; }
+        .consentimiento { background: #f8f8f6; border: 1px solid #e2e2da; border-radius: 8px; padding: 14px; display: flex; flex-direction: column; gap: 12px; margin-bottom: 14px; }
+        .cons-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.5; color: #5a5852; cursor: pointer; }
+        .cons-item input { margin-top: 3px; width: 20px; height: 20px; accent-color: #2E7D32; flex-shrink: 0; cursor: pointer; }
+        .cons-item a { color: #2E7D32; font-weight: 600; }
+        .cons-item em { font-style: normal; font-size: 11px; color: #8a8780; }
+        .btn-deshabilitado { opacity: .5; cursor: not-allowed; pointer-events: none; }
         /* Header */
         .header { background: #2E7D32; color: white; padding: 20px; text-align: center; }
         .header img { max-height: 50px; margin-bottom: 8px; }
@@ -104,6 +113,25 @@
     </div>
 
     <div class="container">
+
+        {% if consentimiento_pendiente %}
+        <!-- Aceptación del Aviso de Privacidad (Issue #506): puede ver su cotización sin aceptar;
+             firmar, pagar y enviar solicitudes esperan a que acepte. -->
+        <form method="post" action="{% url 'portal_aceptar_privacidad' portal.token %}" class="card card-consentimiento" id="card-consentimiento">
+            {% csrf_token %}
+            <div class="card-title"><i class="fas fa-user-shield"></i> Antes de continuar</div>
+            <p>Para firmar tu contrato y pagar necesitamos tu autorización. Puedes ver tu cotización sin aceptar.</p>
+            {% if consentimiento_error %}
+            <p style="color:#c0392b; font-weight:600;">Marca la primera casilla para continuar.</p>
+            {% endif %}
+            <div class="consentimiento">
+                {% include "comercial/_consentimiento_casillas.html" %}
+            </div>
+            <button type="submit" class="btn btn-green" style="border:none; cursor:pointer; width:100%; justify-content:center; min-height:44px; font-size:15px;">
+                <i class="fas fa-check"></i> Aceptar y continuar
+            </button>
+        </form>
+        {% endif %}
 
         <!-- Confirmación de pago tras la recarga (?pago=exitoso) -->
         <div id="banner-pago-exitoso" style="display:none; background:#E8F5E9; color:#2E7D32; border:2px solid #2E7D32; border-radius:8px; padding:16px 20px; margin-bottom:16px; font-weight:600; font-size:15px; align-items:center; gap:10px;">
@@ -319,6 +347,13 @@
         <div class="card">
             <div class="card-title"><i class="fas fa-circle-info"></i> Esta cotización ya no admite pagos</div>
             <p style="font-size:13px; color:#8a8780; margin:0;">{{ admite_pago_motivo }}</p>
+        </div>
+        {% endif %}
+
+        {% if consentimiento_pendiente and admite_pago and saldo_pendiente > 0 %}
+        <div class="card">
+            <div class="card-title"><i class="fas fa-lock"></i> Pagar en línea</div>
+            <p style="font-size:13px; color:#8a8780; margin:0;">Acepta el Aviso de Privacidad, arriba, para habilitar el pago.</p>
         </div>
         {% endif %}
 
@@ -549,7 +584,7 @@
                     <i class="fas fa-file-signature"></i> Contrato firmado PDF
                 </a>
                 {% else %}
-                <a href="{% url 'portal_firmar_contrato' portal.token %}" class="btn btn-yellow">
+                <a {% if consentimiento_pendiente %}href="#card-consentimiento" class="btn btn-yellow btn-deshabilitado" aria-disabled="true" title="Acepta el Aviso de Privacidad para firmar"{% else %}href="{% url 'portal_firmar_contrato' portal.token %}" class="btn btn-yellow"{% endif %}>
                     <i class="fas fa-pen-nib"></i> Revisar y firmar contrato
                 </a>
                 {% endif %}
@@ -561,7 +596,7 @@
         <div class="card">
             <div class="card-title"><i class="fas fa-calendar-alt"></i> ¿Necesitas hacer un cambio?</div>
             <p style="font-size:13px;color:#5a5852;margin-bottom:12px;">Puedes pedir un cambio de fecha o la cancelación de tu reservación. Es una solicitud: nada cambia hasta que la revisemos.</p>
-            <a href="{% url 'portal_solicitar_cancelacion' portal.token %}" class="btn btn-outline">
+            <a {% if consentimiento_pendiente %}href="#card-consentimiento" class="btn btn-outline btn-deshabilitado" aria-disabled="true" title="Acepta el Aviso de Privacidad para enviar solicitudes"{% else %}href="{% url 'portal_solicitar_cancelacion' portal.token %}" class="btn btn-outline"{% endif %}>
                 <i class="fas fa-paper-plane"></i> Solicitar cambio o cancelación
             </a>
         </div>

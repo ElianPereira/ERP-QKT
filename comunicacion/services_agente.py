@@ -38,6 +38,7 @@ from django.utils import timezone
 from django.utils.formats import date_format
 
 from comercial import services_cancelacion, services_ordenes_wa, services_terminal
+from comercial import services_consentimiento as consentimiento
 from contabilidad import services_abonos
 from cumplimiento import services_renovacion
 from operaciones.services import es_listo, marcar_listo
@@ -650,6 +651,12 @@ def _atender_pendientes(conversacion_id: int) -> None:
                 _enviar_automatico(conv, respuesta)
             _pedir_autorizacion_medios(conv)
             pendientes.remove(m)
+    # Autorización del Aviso de Privacidad (`con:<cliente>:<ok|promo|no>:<versión>`): solo desde el teléfono del cliente.
+    for m in [m for m in pendientes if consentimiento.es_boton(m.texto)]:
+        respuesta = consentimiento.atender_boton(conv.telefono, m.texto, m.wamid or '')
+        if respuesta:
+            _enviar_automatico(conv, respuesta)
+        pendientes.remove(m)
     # Permiso de fotos y testimonio (botones `med:<id>:si|no`): solo vale desde el teléfono del cliente.
     for m in [m for m in pendientes if _es_boton_medios(m.texto)]:
         respuesta = _atender_boton_medios(conv, m)
