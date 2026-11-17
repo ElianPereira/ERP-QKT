@@ -269,6 +269,21 @@ class HorariosOcupadosTest(MocksVisitas, TestCase):
 
 
 @wa_settings(**AGENTE)
+class DosVentanasEnUnDiaTest(MocksVisitas, TestCase):
+    """HorarioVisita no se siembra: Dirección captura 10:00–13:00 y 16:00–20:00 y ambas ofrecen citas."""
+
+    def test_mañana_y_tarde_del_mismo_dia(self):
+        HorarioVisita.objects.update(activo=False)
+        HorarioVisita.objects.create(dia_semana=1, hora_inicio=time(10, 0), hora_fin=time(13, 0),
+                                     duracion_minutos=60)
+        HorarioVisita.objects.create(dia_semana=1, hora_inicio=time(16, 0), hora_fin=time(20, 0),
+                                     duracion_minutos=60)
+        libres = services_visitas.horarios_disponibles(limite=None)
+        horas = sorted(timezone.localtime(h).hour for h in libres if timezone.localtime(h).date() == self.dia)
+        self.assertEqual(horas, [10, 11, 12, 16, 17, 18, 19])
+
+
+@wa_settings(**AGENTE)
 class AltaManualTest(MocksVisitas, TestCase):
 
     def setUp(self):
