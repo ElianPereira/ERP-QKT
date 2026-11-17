@@ -6,7 +6,7 @@ real. Nunca corre en CI ni en producción.
 """
 import glob
 import io
-import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from django.contrib.auth.models import User
@@ -29,9 +29,6 @@ OPCIONES = {'destino': None, 'solo': None}   # las fija el comando antes de corr
 
 
 def ruta_chromium():
-    ruta = os.environ.get('PLAYWRIGHT_CHROMIUM_PATH')
-    if ruta:
-        return ruta
     for patron in ('/opt/pw-browsers/chromium-*/chrome-linux*/chrome', '/opt/pw-browsers/chromium'):
         encontrados = sorted(glob.glob(patron))
         if encontrados:
@@ -67,22 +64,6 @@ JS_RESALTAR = """
     'staticfiles': {'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage'},
 }, STATIC_VERSION='')
 class CapturasManual(StaticLiveServerTestCase):
-    @classmethod
-    def setUpClass(cls):
-        if sync_playwright is None:
-            raise RuntimeError('Falta Playwright: pip install playwright (el navegador se toma de PLAYWRIGHT_CHROMIUM_PATH '
-                               'o de /opt/pw-browsers).')
-        os.environ.setdefault('DJANGO_ALLOW_ASYNC_UNSAFE', 'true')
-        super().setUpClass()
-        cls._pw = sync_playwright().start()
-        cls._browser = cls._pw.chromium.launch(executable_path=ruta_chromium())
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._browser.close()
-        cls._pw.stop()
-        super().tearDownClass()
-
     def _cookie(self, rol):
         cliente = Client()
         usuario = User.objects.get(username=demo.USUARIOS[rol][0])
@@ -92,29 +73,41 @@ class CapturasManual(StaticLiveServerTestCase):
             cliente.force_login(usuario)
         return {'name': 'sessionid', 'value': cliente.cookies['sessionid'].value, 'url': self.live_server_url}
 
+    def _fotografiar(self, trabajos, destino):
+        """Todo Playwright va en su propio hilo: su bucle de eventos no debe tocar el de Django."""
+        faltas = []
+        with sync_playwright() as pw:
+            navegador = pw.chromium.launch(executable_path=ruta_chromium())
+            for captura, cookie in trabajos:
+                contexto = navegador.new_context(viewport={'width': captura.ancho, 'height': captura.alto},
+                                                 locale='es-MX')
+                try:
+                    if cookie:
+                        contexto.add_cookies([cookie])
+                    pagina = contexto.new_page()
+                    pagina.goto(self.live_server_url + captura.url)
+                    pagina.wait_for_load_state('networkidle')
+                    if captura.preparar:
+                        captura.preparar(pagina)
+                    if captura.resaltar:
+                        selectores = [x.strip() for x in captura.resaltar.split(',')]
+                        if not any(pagina.evaluate(JS_RESALTAR, x) for x in selectores):
+                            faltas.append(f'{captura.nombre}: no se encontró «{captura.resaltar}»')
+                    (destino / f'{captura.nombre}.webp').write_bytes(a_webp(pagina.screenshot()))
+                finally:
+                    contexto.close()
+            navegador.close()
+        return faltas
+
     def test_generar_capturas(self):
+        if sync_playwright is None:
+            raise RuntimeError('Falta Playwright: pip install playwright (el navegador se busca en /opt/pw-browsers).')
         demo.sembrar_usuarios()
         demo.sembrar_datos()
         destino = Path(OPCIONES['destino'])
         destino.mkdir(parents=True, exist_ok=True)
-        faltas = []
-        for captura in CAPTURAS:
-            if OPCIONES['solo'] and captura.nombre not in OPCIONES['solo']:
-                continue
-            contexto = self._browser.new_context(viewport={'width': captura.ancho, 'height': captura.alto},
-                                                 locale='es-MX')
-            try:
-                if captura.rol != 'ANONIMO':
-                    contexto.add_cookies([self._cookie(captura.rol)])
-                pagina = contexto.new_page()
-                pagina.goto(self.live_server_url + captura.url)
-                pagina.wait_for_load_state('networkidle')
-                if captura.preparar:
-                    captura.preparar(pagina)
-                if captura.resaltar and not pagina.evaluate(JS_RESALTAR, captura.resaltar.split(',')[0]):
-                    if not any(pagina.evaluate(JS_RESALTAR, s.strip()) for s in captura.resaltar.split(',')[1:]):
-                        faltas.append(f'{captura.nombre}: no se encontró «{captura.resaltar}»')
-                (destino / f'{captura.nombre}.webp').write_bytes(a_webp(pagina.screenshot()))
-            finally:
-                contexto.close()
+        trabajos = [(c, None if c.rol == 'ANONIMO' else self._cookie(c.rol)) for c in CAPTURAS
+                    if not OPCIONES['solo'] or c.nombre in OPCIONES['solo']]
+        with ThreadPoolExecutor(max_workers=1) as hilo:
+            faltas = hilo.submit(self._fotografiar, trabajos, destino).result()
         self.assertEqual(faltas, [], 'Selectores sin resolver:\n' + '\n'.join(faltas))
