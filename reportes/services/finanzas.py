@@ -57,22 +57,32 @@ class FlujoEfectivoService:
     Entradas y salidas de cada cuenta bancaria activa: saldo según libros al
     día anterior al periodo, movimientos de pólizas aplicadas agrupados por su
     origen (cobros, compras, nómina…) y por mes, y saldo final.
+
+    Los traspasos entre cuentas propias (pólizas cuya contrapartida es la cuenta
+    TRASPASOS_EN_TRANSITO) no son entradas ni salidas del negocio: se muestran
+    aparte y quedan fuera de esos totales; los saldos por cuenta no cambian.
     """
 
     @classmethod
     def generar(cls, fecha_inicio: date, fecha_fin: date) -> Dict:
-        from contabilidad.models import CuentaBancaria, MovimientoContable, Poliza
+        from contabilidad.models import ConfiguracionContable, CuentaBancaria, MovimientoContable, Poliza
 
         etiquetas = dict(Poliza.ORIGEN_CHOICES)
+        puente = ConfiguracionContable.obtener_cuenta('TRASPASOS_EN_TRANSITO')
+        polizas_puente = (MovimientoContable.objects.filter(cuenta=puente).values('poliza_id')
+                          if puente else MovimientoContable.objects.none().values('poliza_id'))
         cuentas = []
         origenes, meses = {}, {}
-        entradas = salidas = inicial = CERO
+        entradas = salidas = inicial = tras_ent = tras_sal = CERO
         for cb in CuentaBancaria.objects.filter(activa=True, cuenta_contable__isnull=False).order_by('nombre'):
             saldo_inicial = cb.saldo_a_fecha(fecha_inicio - timedelta(days=1))
-            movs = MovimientoContable.objects.filter(
+            todos = MovimientoContable.objects.filter(
                 cuenta=cb.cuenta_contable, poliza__estado='APLICADA',
                 poliza__fecha__gte=fecha_inicio, poliza__fecha__lte=fecha_fin,
             )
+            tr = todos.filter(poliza_id__in=polizas_puente).aggregate(d=Sum('debe'), h=Sum('haber'))
+            t_ent, t_sal = tr['d'] or CERO, tr['h'] or CERO
+            movs = todos.exclude(poliza_id__in=polizas_puente)
             ent = sal = CERO
             for fila in movs.values('poliza__origen').annotate(debe=Sum('debe'), haber=Sum('haber')):
                 o = origenes.setdefault(fila['poliza__origen'], {
@@ -83,19 +93,29 @@ class FlujoEfectivoService:
                 o['salidas'] += fila['haber'] or CERO
                 ent += fila['debe'] or CERO
                 sal += fila['haber'] or CERO
-            for fila in movs.values('poliza__fecha__year', 'poliza__fecha__month').annotate(
+            for fila in todos.values('poliza__fecha__year', 'poliza__fecha__month').annotate(
                     debe=Sum('debe'), haber=Sum('haber')):
                 clave = (fila['poliza__fecha__year'], fila['poliza__fecha__month'])
-                m = meses.setdefault(clave, {'mes': date(*clave, 1), 'entradas': CERO, 'salidas': CERO})
+                m = meses.setdefault(clave, {'mes': date(*clave, 1), 'entradas': CERO, 'salidas': CERO,
+                                             'traspasos': CERO})
                 m['entradas'] += fila['debe'] or CERO
                 m['salidas'] += fila['haber'] or CERO
+            for fila in todos.filter(poliza_id__in=polizas_puente).values(
+                    'poliza__fecha__year', 'poliza__fecha__month').annotate(debe=Sum('debe'), haber=Sum('haber')):
+                m = meses[(fila['poliza__fecha__year'], fila['poliza__fecha__month'])]
+                m['entradas'] -= fila['debe'] or CERO  # los traspasos salen de entradas y salidas del mes
+                m['salidas'] -= fila['haber'] or CERO
+                m['traspasos'] += (fila['debe'] or CERO) - (fila['haber'] or CERO)
             cuentas.append({
                 'nombre': str(cb), 'saldo_inicial': saldo_inicial, 'entradas': ent, 'salidas': sal,
-                'saldo_final': saldo_inicial + ent - sal,
+                'traspasos_entradas': t_ent, 'traspasos_salidas': t_sal, 'traspasos': t_ent - t_sal,
+                'saldo_final': saldo_inicial + ent - sal + t_ent - t_sal,
             })
             inicial += saldo_inicial
             entradas += ent
             salidas += sal
+            tras_ent += t_ent
+            tras_sal += t_sal
 
         for o in origenes.values():
             o['neto'] = o['entradas'] - o['salidas']
@@ -104,7 +124,7 @@ class FlujoEfectivoService:
         for clave in sorted(meses):
             m = meses[clave]
             m['neto'] = m['entradas'] - m['salidas']
-            acumulado += m['neto']
+            acumulado += m['neto'] + m['traspasos']
             m['saldo'] = acumulado
             filas_mes.append(m)
         return {
@@ -113,7 +133,9 @@ class FlujoEfectivoService:
             'origenes': sorted(origenes.values(), key=lambda o: -(o['entradas'] + o['salidas'])),
             'meses': filas_mes,
             'saldo_inicial': inicial, 'entradas': entradas, 'salidas': salidas,
-            'neto': entradas - salidas, 'saldo_final': inicial + entradas - salidas,
+            'traspasos_entradas': tras_ent, 'traspasos_salidas': tras_sal, 'traspasos': tras_ent - tras_sal,
+            'hay_traspasos': bool(tras_ent or tras_sal),
+            'neto': entradas - salidas, 'saldo_final': inicial + entradas - salidas + tras_ent - tras_sal,
         }
 
 

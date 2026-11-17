@@ -526,10 +526,12 @@ def reporte_flujo(request):
     return _entregar(request, 'FLUJO', 'FlujoEfectivo', 'reportes/pdf_flujo.html', datos, lambda: [
         ('Por origen', ['Origen', 'Entradas', 'Salidas', 'Neto'],
          [(o['nombre'], o['entradas'], o['salidas'], o['neto']) for o in datos['origenes']]),
-        ('Por mes', ['Mes', 'Entradas', 'Salidas', 'Neto', 'Saldo al cierre'],
-         [(m['mes'], m['entradas'], m['salidas'], m['neto'], m['saldo']) for m in datos['meses']]),
-        ('Por cuenta', ['Cuenta', 'Saldo inicial', 'Entradas', 'Salidas', 'Saldo final'],
-         [(c['nombre'], c['saldo_inicial'], c['entradas'], c['salidas'], c['saldo_final'])
+        ('Traspasos entre cuentas propias', ['Cuenta', 'Recibido', 'Enviado', 'Neto'],
+         [(c['nombre'], c['traspasos_entradas'], c['traspasos_salidas'], c['traspasos']) for c in datos['cuentas']]),
+        ('Por mes', ['Mes', 'Entradas', 'Salidas', 'Neto', 'Traspasos', 'Saldo al cierre'],
+         [(m['mes'], m['entradas'], m['salidas'], m['neto'], m['traspasos'], m['saldo']) for m in datos['meses']]),
+        ('Por cuenta', ['Cuenta', 'Saldo inicial', 'Entradas', 'Salidas', 'Traspasos', 'Saldo final'],
+         [(c['nombre'], c['saldo_inicial'], c['entradas'], c['salidas'], c['traspasos'], c['saldo_final'])
           for c in datos['cuentas']]),
     ])
 

@@ -139,3 +139,38 @@ class AccionAdminTest(CambioDeCuentaTest):
         self.assertEqual(r.status_code, 302)
         self.pago.refresh_from_db()
         self.assertEqual(self.pago.cuenta_bancaria, self.pagadora)
+
+
+class AccionAdminDepositoTest(CambioDeCuentaTest):
+    """La misma herramienta de corrección sobre un movimiento de depósito en garantía."""
+    URL = '/admin/comercial/movimientodeposito/'
+
+    def setUp(self):
+        super().setUp()
+        from comercial.models import MovimientoDeposito
+        from comercial.services_deposito import asegurar_deposito, registrar_recepcion
+        self.admin = get_user_model().objects.create_superuser('dir_ficticio', 'd@example.com', 'x')  # noqa: S106
+        login_superuser_con_totp(self.client, self.admin)
+        deposito = asegurar_deposito(self.pago.cotizacion, Decimal('1000.00'))
+        registrar_recepcion(deposito, monto=Decimal('1000.00'), metodo='TRANSFERENCIA')
+        self.movimiento = MovimientoDeposito.objects.get(deposito=deposito, tipo='RECEPCION')
+
+    def _post(self, **datos):
+        return self.client.post(self.URL, {'action': 'cambiar_cuenta_bancaria',
+                                           '_selected_action': [self.movimiento.pk], **datos})
+
+    def test_primer_paso_y_sin_confirmar_no_escriben(self):
+        self.assertContains(self._post(), 'Cuenta bancaria destino')
+        self._post(cuenta=self.pagadora.pk)
+        self._post(confirmar='si')
+        self.movimiento.refresh_from_db()
+        self.assertIsNone(self.movimiento.cuenta_bancaria_id)
+
+    def test_confirmado_reapunta_la_poliza_del_deposito(self):
+        self.assertEqual(self._post(confirmar='si', cuenta=self.pagadora.pk).status_code, 302)
+        self.movimiento.refresh_from_db()
+        self.assertEqual(self.movimiento.cuenta_bancaria, self.pagadora)
+        poliza = Poliza.objects.get(content_type=ContentType.objects.get_for_model(self.movimiento),
+                                   object_id=self.movimiento.pk, origen='DEPOSITO_GARANTIA')
+        self.assertIn('102.02.04', {m.cuenta.codigo_sat for m in poliza.movimientos.all()})
+        self.assertIn('dir_ficticio', self.movimiento.desglose)
