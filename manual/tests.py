@@ -7,11 +7,13 @@ el superusuario; y cada archivo del manual es válido (cabecera, roles, imágene
 y enlaces).
 """
 import io
+import re
 from unittest.mock import patch
 
 from django.contrib.auth.models import Group, User
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils.html import strip_tags
 
 from core_erp.test_utils import login_superuser_con_totp
 
@@ -333,3 +335,36 @@ class SeccionesRealesTest(TestCase):
             html = sv.render_cuerpo(s, set(sv.ROLES_VALIDOS))
             self.assertNotIn('{{', html, s.slug)
             self.assertNotIn(':::', html, s.slug)
+
+
+class SinInformacionReservadaTest(TestCase):
+    """Ningún rol distinto de Dirección recibe costos, márgenes, configuración ni comisiones ajenas (Issue #507)."""
+
+    PROHIBIDO = re.compile(
+        r'\b(costos?|márgenes?|margen|utilidad|contabilidad →|nómina → (condiciones|escalones)|indicadores →|'
+        r'variables de entorno|programador|supuestos|runbook)\b', re.IGNORECASE)
+
+    def test_las_secciones_de_los_roles_no_traen_lo_reservado(self):
+        for rol in ('VENTAS', 'ENCARGADO', 'OPERACION', 'CONTADOR', 'TODOS'):
+            for s in sv.secciones_para({rol, sv.TODOS}, borradores=True):
+                html = sv.render_cuerpo(s, {rol, sv.TODOS})
+                texto = strip_tags(html)
+                for m in self.PROHIBIDO.finditer(texto):
+                    if rol == 'CONTADOR' and m.group(0).lower().startswith('contabilidad'):
+                        continue   # el contador sí trabaja en Contabilidad
+                    self.fail(f'{s.slug} ({rol}) menciona «{m.group(0)}»')
+
+
+class TablasDinamicasTest(TestCase):
+    """Las tablas que salen del sistema (cancelación, horarios de visita) se llenan de verdad."""
+
+    def test_cancelacion_y_horarios_se_leen_de_la_fuente(self):
+        from comercial import reglas_contrato
+        from comunicacion.models import HorarioVisita
+        HorarioVisita.objects.create(dia_semana=2, hora_inicio='10:00', hora_fin='12:00', duracion_minutos=60)
+        por_slug = {s.slug: s for s in sv.cargar_secciones()}
+        canc = strip_tags(sv.render_cuerpo(por_slug['cambios-y-cancelaciones'], {'VENTAS'}))
+        for tramo, *_ in reglas_contrato.TABLA_CANCELACION['SERVICIO'] + reglas_contrato.TABLA_CANCELACION['HOSPEDAJE']:
+            self.assertIn(tramo, canc)
+        visitas = strip_tags(sv.render_cuerpo(por_slug['agendar-una-visita'], {'VENTAS'}))
+        self.assertIn('10:00 a 12:00', visitas)

@@ -2,7 +2,7 @@
 titulo: Registrar un cobro
 capitulo: Cobros
 orden: 600
-roles: [ENCARGADO, DIRECCION]
+roles: [VENTAS, ENCARGADO, DIRECCION]
 ---
 Un cobro es el dinero que el cliente entrega por su reservación. Se registra **una sola vez**, en cuanto llega, y siempre contra una cotización. El sistema calcula solo el saldo, avisa si algo no cuadra y, cuando el cliente ya pagó lo suficiente, aparta la fecha.
 
@@ -40,6 +40,12 @@ Un cobro es el dinero que el cliente entrega por su reservación. Se registra **
 
 :::correcto
 Después de guardar, la cotización muestra el pago y el saldo baja por el mismo monto. Si con este cobro el cliente ya cubrió el anticipo, la cotización pasa sola a **Confirmada** y la fecha queda apartada.
+:::
+
+:::rol VENTAS
+### Lo que no puedes registrar
+
+El sistema no te deja registrar **reembolsos** ni **condonaciones o cortesías**: son decisiones de la Dirección. Si un cliente pide que "se le perdone" una parte o se le devuelva algo, no lo captures; pásalo a la Dirección.
 :::
 
 ### Efectivo
