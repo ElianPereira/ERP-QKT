@@ -49,6 +49,7 @@ class Lead(models.Model):
         ('RECOMENDACION', 'Recomendación'),
         ('RECURRENTE', 'Cliente recurrente'),
         ('VISITA_QUINTA', 'Visitó la Quinta'),
+        ('VENDEDOR', 'Vendedor'),
         ('WHATSAPP', 'WhatsApp directo'),
         ('OTRO', 'Otro'),
     ]

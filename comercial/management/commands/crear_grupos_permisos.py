@@ -63,6 +63,7 @@ GRUPOS_EXPLICITOS = {
         ('comercial', 'productohospedaje'): ('view',),
         ('comercial', 'bloqueofecha'): ('view',),
         ('comunicacion', 'horariovisita'): ('view',),
+        ('ventas', 'comisioncontratacion'): ('=ver_mis_comisiones',),
     },
 }
 
@@ -74,7 +75,7 @@ class Command(BaseCommand):
         permisos = []
         for (app_label, model_name), verbos in mapa.items():
             for verbo in verbos:
-                codename = f'{verbo}_{model_name}'
+                codename = verbo[1:] if verbo.startswith('=') else f'{verbo}_{model_name}'
                 try:
                     permisos.append(Permission.objects.get(
                         content_type__app_label=app_label, content_type__model=model_name, codename=codename))

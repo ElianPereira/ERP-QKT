@@ -141,7 +141,8 @@ pre-commit · CI en GitHub Actions.
   retención, pauta de Meta y Google Ads, KPIs, decisiones, conversiones, referidos; solo superusuario (Issue #468).
 - `ventas/` — personal de ventas (Issue #505): atribución de cotizaciones al vendedor (`services_atribucion`), grupo
   `Vendedor` y sus candados (`permisos.py`), motor de comisiones (`services_comisiones`), cortes y pago
-  (`services_cortes`) y control del efectivo (`services_efectivo`); el tablero «Ventas» y «Mis comisiones» llegan en el PR 5.
+  (`services_cortes`), control del efectivo (`services_efectivo`) y lecturas (`services_tablero`: tablero «Ventas» para
+  Dirección, «Mis comisiones» para la vendedora, seguimiento de la venta, costo de ventas para Indicadores y Marketing).
 - `manual/` — manual de procedimientos por rol (Issue #507): secciones Markdown en `manual/secciones/`, vista
   `/admin/manual/`, PDF por rol, capturas automáticas. **Regla permanente**: un PR que cambie una pantalla o flujo
   que el manual describe actualiza su sección y corre `python manage.py generar_capturas_manual` en el mismo PR.
@@ -283,6 +284,39 @@ Registro de decisiones técnicas y errores resueltos. Formato:
 arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
+
+- 2026-11-18 — **Personal de ventas, fase 3: tablero, «Mis comisiones», reportes e integración (PR 5 del Issue #505)** (rama
+  `claude/ventas-505-fase3`; **solo lectura**: no cambia cómo se devenga ni cómo se paga; sin zonas restringidas; migraciones aditivas:
+  `ventas.0003` —un permiso—, `reportes.0007` —un choice— y `marketing.0010` —un choice—). `ventas/services_tablero.py` es la fuente única de
+  lectura. **Definiciones**: devengado = movimientos del periodo sin absorción; pagado = cortes PAGADO con `pagado_en` en el periodo; por pagar =
+  sin cortar (neto, sin absorciones) + cortes borrador/aprobados, nunca negativo; **costo de ventas = TODOS los movimientos del periodo, absorción
+  incluida** (lo que la Quinta asume). **(1) «Ventas»** (`/admin/ventas/tablero/`, solo superusuario, topmenu con `ventas.view_cortecomision`):
+  por persona visitas (agendadas, atendidas, no llegó, pagadas, sobre el tope, manuales), cotizaciones, contrataciones, tasa de cierre,
+  venta sin IVA, escalón del año y cuántas faltan para el siguiente, devengado/pagado/por pagar, saldo en contra, absorbido, no devengado por
+  baja y efectivo por entregar, con tabla por contratación. **(2) «Mis comisiones»** (`/admin/ventas/mis-comisiones/`): el Empleado se resuelve
+  SIEMPRE con `vendedor_de_usuario(request.user)` y la vista **no lee ningún parámetro**; sin Empleado VENTAS activo (o con baja) = 403, también
+  para un superusuario sin Empleado ligado. `mis_comisiones()` devuelve solo visitas, contrataciones, ganado/pagado/por cobrar y cortes; **sin
+  costo de la venta, margen ni cifras de otra persona** (una prueba revisa el contexto y el HTML). El estado de cuenta se sirve por una vista
+  propia (`mis-comisiones/corte/<pk>/`): corte ajeno, cancelado o sin PDF = 404; no se usa la descarga genérica porque exigiría
+  `view_cortecomision`. El enlace del menú se muestra con el permiso `ventas.ver_mis_comisiones` (Meta de `ComisionContratacion`); el grupo
+  `Vendedor` lo recibe y **nada más de `ventas`** (`GRUPOS_EXPLICITOS` ganó el prefijo `=` para dar un codename completo). Correr
+  `crear_grupos_permisos` tras el deploy. **(3) Seguimiento**: panel «Qué le ha pasado a la venta» en la cotización (pestaña «Seguimiento»),
+  armado leyendo lo que ya existe (cotización, atribución, envío, visita, pagos y reembolsos, contrato, firma, cancelación, confirmación); **no
+  se agregaron señales ni columnas a `EventoVenta`**; las líneas de comisión solo salen con `incluir_comision=True` y el panel «Comisión» de
+  Dirección ya las muestra. **(4) Reportes**: «Comisiones por periodo» (PDF + Excel: por persona, contrataciones y movimientos; solo quien tenga
+  `ventas.view_cortecomision`, o sea Dirección); «Rentabilidad» gana columna y total de comisión devengada **sin mover `utilidad` bruta**
+  (`utilidad_tras_comisiones` aparte); «Nómina por periodo» gana el bloque «Costo total de personal» con el renglón de comisiones y pagos a ventas.
+  **(5) Indicadores**: `comision_pct` (comisión sellada de las ventas típicas ÷ su venta neta) se suma al costo variable en
+  `economia_servicio` (clave nueva `comision`); **una simulación de % de costo es explícita y no la suma**. Como `topes_cac` de Marketing
+  parte del margen de ese servicio, el tope de CAC baja solo. **(6) Marketing**: `Lead.fuente` gana `VENDEDOR`; un cliente con
+  `origen='Vendedor'` tiene esa fuente **antes** que anuncio o WhatsApp y `calcular` no lo acredita a una campaña; «Prospectos» muestra el
+  vendedor de la cotización; el tablero muestra «Costo de ventas» junto al gasto de pauta **sin entrar al CAC**. **(7) WhatsApp**:
+  `enviar_resumen_ventas` (lunes 08:45 en el programador; a quien tenga el rol VENTAS, solo lo suyo, idempotente por semana) y una línea en el
+  resumen del lunes a Dirección (`linea_resumen_direccion`). **(8) Manual y guía**: secciones `mis-comisiones` y `comisiones-calculo-y-cortes`
+  completas (sin `[CONFIRMAR:]`, sin montos escritos a mano: salen de las Condiciones), caso nuevo en «Qué hacer si… ventas», captura
+  `mis-comisiones` (390 px, con datos de `manual/demo.py`) y `docs/guia_ventas.md`. **Pendientes del propietario de TODO el plan #505**: ver el
+  comentario de cierre en el Issue. **No se hizo (PR 6, opcionales)**: TOTP para Vendedor, descuento máximo, días sin visitas, varias vendedoras y
+  bono por reseña: cada uno pide aprobación aparte.
 
 - 2026-11-18 — **Manual de procedimientos, M2 + M3 + M4** (Issue #507; sin zonas restringidas; **sin migraciones**; un solo PR en borrador,
   commits `M2:`/`M3:`/`M4:`). 42 secciones en `manual/secciones/` (30 publicadas, 12 borradores con `[CONFIRMAR:]`): Ventas y reglas generales

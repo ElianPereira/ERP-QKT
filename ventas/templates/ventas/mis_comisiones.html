@@ -1,0 +1,73 @@
+{% extends "admin/base_site.html" %}
+{% load qkt_documentos %}
+{% comment %}«Mis comisiones» (Issue #505, PR 5). Solo lo de la persona que entró; nunca costos, márgenes ni otra persona.{% endcomment %}
+
+{% block content %}
+<div class="qkt-pagina">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-hand-holding-usd" aria-hidden="true"></i> Mis comisiones</h1>
+    </div>
+
+    <div class="qkt-kpis">
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Contrataciones del {{ d.escalon.anio|stringformat:"d" }}</div><div class="qkt-kpi__valor">{{ d.escalon.contrataciones_anio }}</div>
+            <div class="qkt-kpi__sub">{% if d.escalon.sin_condiciones %}Aún no hay condiciones aceptadas{% else %}La siguiente te paga {{ d.escalon.monto_siguiente|moneda }}{% if d.escalon.faltan_para_escalon %}; a {{ d.escalon.faltan_para_escalon }} más pasa a {{ d.escalon.monto_proximo_escalon|moneda }}{% endif %}{% endif %}</div></div>
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Ganado este mes</div><div class="qkt-kpi__valor">{{ d.mes.devengado|moneda }}</div><div class="qkt-kpi__sub">Visitas {{ d.mes.visitas_devengado|moneda }} · contrataciones {{ d.mes.comisiones_devengado|moneda }}</div></div>
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Por cobrar</div><div class="qkt-kpi__valor">{{ d.anio.por_pagar|moneda }}</div><div class="qkt-kpi__sub">Aún no se te paga</div></div>
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Pagado en el año</div><div class="qkt-kpi__valor">{{ d.anio.pagado|moneda }}</div><div class="qkt-kpi__sub">Ganado en el año {{ d.anio.devengado|moneda }}</div></div>
+    </div>
+
+    {% if d.saldo_en_contra %}
+    <div class="qkt-aviso qkt-aviso--info"><span class="qkt-aviso__titulo">Ajuste por cancelación</span> Se te descontará {{ d.saldo_en_contra|moneda }} de tus próximas comisiones (máximo el porcentaje acordado de cada pago). Nunca se te pide dinero.</div>
+    {% endif %}
+    {% if d.efectivo_por_entregar %}
+    <div class="qkt-aviso qkt-aviso--alerta"><span class="qkt-aviso__titulo">Efectivo por entregar</span> Tienes {{ d.efectivo_por_entregar|moneda }} cobrados a clientes en efectivo pendientes de entregar a Dirección. No se descuenta de tus comisiones.</div>
+    {% endif %}
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-calendar-check" aria-hidden="true"></i> Visitas</h2></div>
+        <div class="qkt-panel__cuerpo"><span class="qkt-kpi__sub">Este mes: {{ d.mes.visitas.atendidas }} atendida{{ d.mes.visitas.atendidas|pluralize }}, {{ d.mes.visitas.no_llego }} no llegó, {{ d.mes.visitas.sobre_tope }} sobre el tope semanal (esas no pagan, pero cuentan para tu venta).</span></div>
+        {% if d.proximas_visitas %}
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla"><thead><tr><th>Próximas visitas</th><th>Cuándo</th></tr></thead><tbody>
+            {% for v in d.proximas_visitas %}<tr><th>{{ v.nombre }}</th><td>{{ v.inicio|date:"d/m/Y H:i" }}</td></tr>{% endfor %}
+            </tbody></table>
+        </div>
+        {% endif %}
+    </div>
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-handshake" aria-hidden="true"></i> Mis contrataciones del {{ d.escalon.anio|stringformat:"d" }}</h2></div>
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Folio</th><th>Cliente</th><th>Servicio</th><th>N.º del año</th><th class="qkt-der">Tu comisión</th><th class="qkt-der">Ganado</th><th class="qkt-der">Por ganar</th><th>Estado</th></tr></thead>
+                <tbody>
+                {% for c in d.contrataciones %}
+                    <tr><th>{{ c.folio }}</th><td>{{ c.cliente }}</td><td>{{ c.servicio }}</td><td class="qkt-num">{{ c.numero }}</td>
+                        <td class="qkt-der qkt-num">{{ c.comision|moneda }}</td><td class="qkt-der qkt-num">{{ c.ganado|moneda }}</td><td class="qkt-der qkt-num">{{ c.por_ganar|moneda }}</td><td>{{ c.estado }}</td></tr>
+                {% empty %}
+                    <tr class="qkt-tabla__vacio"><td colspan="8">Aún no tienes contrataciones este año.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="qkt-panel__cuerpo"><span class="qkt-kpi__sub">Tu comisión se gana en proporción a lo que el cliente ha pagado: con el 50 % pagado ya llevas la mitad.</span></div>
+    </div>
+
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-file-pdf" aria-hidden="true"></i> Mis estados de cuenta</h2></div>
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Tipo</th><th>Periodo</th><th class="qkt-der">Total</th><th>Estado</th><th></th></tr></thead>
+                <tbody>
+                {% for c in d.cortes %}
+                    <tr><th>{{ c.tipo }}</th><td>{{ c.desde|date:"d/m/Y" }} al {{ c.hasta|date:"d/m/Y" }}</td><td class="qkt-der qkt-num">{{ c.total|moneda }}</td><td>{{ c.estado }}</td>
+                        <td>{% if c.tiene_pdf %}<a class="qkt-btn qkt-btn--secundario" href="{% url 'ventas:mis_comisiones_estado' c.pk %}" target="_blank" rel="noopener"><i class="fas fa-file-pdf" aria-hidden="true"></i> Estado</a>{% endif %}</td></tr>
+                {% empty %}
+                    <tr class="qkt-tabla__vacio"><td colspan="5">Todavía no hay cortes.</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

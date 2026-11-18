@@ -85,3 +85,45 @@ def sembrar_datos():
             resultado=resultado, estado_cuenta=estado if resultado == 'PROCESADO' else None,
             detalle='' if resultado == 'PROCESADO' else 'Ejemplo de error de lectura.',
             archivo_eml=ContentFile(b'From: avisos@banco-ejemplo.invalid\n', name='demo.eml'))
+
+    sembrar_ventas(hoy)
+
+
+def sembrar_ventas(hoy):
+    """Una vendedora de ejemplo con condiciones, una venta con la mitad pagada y una visita atendida:
+    lo que muestra «Mis comisiones» (datos inventados, nunca reales)."""
+    from comercial.models import Cliente, Cotizacion, ItemCotizacion, Pago, Producto
+    from comunicacion.models import Visita
+    from nomina.models import CondicionesPago, Empleado, EscalonComision
+    from nomina.services_expediente import aceptar_condiciones
+    from ventas import services_comisiones
+
+    vendedora = Empleado.objects.create(nombre='Vendedora Demo', puesto='VENTAS', telefono='9990000099')
+    Empleado.objects.filter(pk=vendedora.pk).update(usuario=User.objects.get(username=USUARIOS['VENTAS'][0]))
+    vendedora.refresh_from_db()
+    condiciones = CondicionesPago.objects.create(
+        empleado=vendedora, vigente_desde=hoy - timedelta(days=60), pago_visita=Decimal('100.00'),
+        tope_visitas_semana=5, porcentaje_extras=Decimal('0.05'))
+    for desde, monto in ((1, '350.00'), (13, '500.00')):
+        EscalonComision.objects.create(condiciones=condiciones, desde_contratacion=desde, monto=Decimal(monto))
+    aceptar_condiciones(condiciones)
+
+    cliente = Cliente.objects.create(nombre='Cliente de Ejemplo Cuatro', tipo_persona='FISICA', telefono='9990000004')
+    cot = Cotizacion.objects.create(cliente=cliente, nombre_evento='Boda de ejemplo',
+                                    fecha_evento=hoy + timedelta(days=75), incluye_refrescos=False)
+    renta = Producto.objects.create(nombre='Renta de ejemplo', precio_venta_fijo=Decimal('14000.00'),
+                                    rol_cotizador='BASE_EVENTO')
+    ItemCotizacion.objects.create(cotizacion=cot, producto=renta, cantidad=1, precio_unitario=Decimal('14000.00'))
+    ItemCotizacion.objects.create(cotizacion=cot, descripcion='Extra de ejemplo', cantidad=1,
+                                  precio_unitario=Decimal('3000.00'))
+    Cotizacion.objects.filter(pk=cot.pk).update(vendedor=vendedora, vendedor_origen='COTIZO', estado='CONFIRMADA')
+    cot.refresh_from_db()
+    Pago.objects.bulk_create([Pago(cotizacion=cot, tipo='INGRESO', concepto='VENTA', metodo='TRANSFERENCIA',
+                                   monto=(cot.precio_final / 2).quantize(Decimal('0.01')), fecha_pago=hoy,
+                                   referencia='EJEMPLO-0002')])
+    services_comisiones.sincronizar(cot)
+    visita = Visita.objects.create(nombre='Visitante de ejemplo', telefono='9990000005', estado='CONFIRMADA',
+                                   inicio=timezone.now() - timedelta(hours=2), vendedor=vendedora,
+                                   resultado='ATENDIDA')
+    services_comisiones.devengar_visita(visita)
+

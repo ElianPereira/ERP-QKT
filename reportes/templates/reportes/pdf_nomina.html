@@ -41,6 +41,15 @@
   </tbody>
 </table>
 
+<h2 class="doc-seccion">Costo total de personal</h2>
+<table class="doc-tabla">
+  <tbody>
+    <tr><td>Nómina del periodo</td><td class="num col-monto">{{ total|moneda }}</td></tr>
+    <tr><td>Comisiones y pagos a ventas (devengado)</td><td class="num col-monto">{{ ventas_devengado|moneda }}</td></tr>
+    <tr class="total"><td>Costo total de personal</td><td class="num">{{ costo_total_personal|moneda }}</td></tr>
+  </tbody>
+</table>
+
 {% if recibos %}
 <h2 class="doc-seccion">Recibos</h2>
 <table class="doc-tabla">
@@ -62,4 +71,4 @@
 {% endif %}
 {% endblock %}
 
-{% block notas %}Un recibo entra al periodo por la fecha en que empieza su semana. Pagado = recibos marcados como pagados en efectivo.{% endblock %}
+{% block notas %}Un recibo entra al periodo por la fecha en que empieza su semana. Pagado = recibos marcados como pagados en efectivo. Las comisiones y pagos a ventas no son recibos: se muestran aparte, devengados en el periodo (sin IVA, gasto no deducible).{% endblock %}

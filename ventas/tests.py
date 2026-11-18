@@ -290,7 +290,9 @@ class GrupoVendedorTest(TestCase):
                           'view_recibonomina', 'view_poliza'):
             self.assertNotIn(prohibido, {c for _, c in permisos})
         apps = {a for a, _ in permisos}
-        self.assertTrue(apps <= {'comercial', 'comunicacion'})
+        self.assertTrue(apps <= {'comercial', 'comunicacion', 'ventas'})
+        # De `ventas` solo el permiso de su propia pantalla «Mis comisiones».
+        self.assertEqual({c for a, c in permisos if a == 'ventas'}, {'ver_mis_comisiones'})
 
     def test_es_vendedor(self):
         self.assertTrue(es_vendedor(self.ana.usuario))

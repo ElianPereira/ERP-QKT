@@ -800,7 +800,7 @@ class CotizacionAdmin(admin.ModelAdmin):
                        'identificacion_revisada_por', 'identificacion_revisada_en', 'privacidad_cliente', 'enviar_email_btn'),
         }),
     )
-    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por', 'privacidad_cliente', 'comision_ventas')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por', 'privacidad_cliente', 'comision_ventas', 'seguimiento_venta')
 
     # Costos y márgenes que el grupo Vendedor no ve (Issue #505).
     CAMPOS_DE_COSTO = ('factor_utilidad_barra', 'resumen_barra_html')
@@ -808,6 +808,8 @@ class CotizacionAdmin(admin.ModelAdmin):
 
     def get_fieldsets(self, request, obj=None):
         conjuntos = super().get_fieldsets(request, obj)
+        if obj is not None and obj.pk:
+            conjuntos = [*conjuntos, ('Seguimiento', {'fields': ('seguimiento_venta',)})]
         if request.user.is_superuser and obj is not None and obj.vendedor_id:
             conjuntos = [*conjuntos, ('Comisión de ventas', {'fields': ('comision_ventas',)})]
         if not es_vendedor(request.user):
@@ -822,6 +824,22 @@ class CotizacionAdmin(admin.ModelAdmin):
         if not request.user.is_superuser:
             acciones.pop('asignar_vendedor', None)
         return acciones
+
+    @admin.display(description='Qué le ha pasado a la venta')
+    def seguimiento_venta(self, obj):
+        """Línea de tiempo (quién y cuándo). Sin cifras de comisión: esas van en el panel «Comisión» de Dirección."""
+        from django.utils import timezone
+
+        from ventas.services_tablero import linea_de_tiempo
+
+        filas = linea_de_tiempo(obj)
+        if not filas:
+            return ui.vacio()
+        return format_html(
+            '<table class="qkt-tabla"><tbody>{}</tbody></table>',
+            format_html_join('', '<tr><th>{}</th><td>{}</td><td>{}</td><td>{}</td></tr>', (
+                (f'{timezone.localtime(f["cuando"]):%d/%m/%Y %H:%M}', f['tipo'], f['detalle'], f['quien'])
+                for f in filas)))
 
     @admin.display(description='Comisión')
     def comision_ventas(self, obj):

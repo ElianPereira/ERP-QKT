@@ -179,16 +179,21 @@ class RentabilidadEventosService:
     def generar(cls, fecha_inicio: date, fecha_fin: date, estado: str = None) -> Dict:
         from comercial.models import Cotizacion, Gasto
         from comercial.views import ESTADOS_VENTA_REAL
+        from ventas.models import ComisionContratacion
 
         cero = Decimal('0.00')
         cotizaciones = Cotizacion.objects.filter(
             fecha_evento__gte=fecha_inicio, fecha_evento__lte=fecha_fin,
             estado__in=[estado] if estado else ESTADOS_VENTA_REAL,
         ).select_related('cliente').prefetch_related('gasto_set__compra').order_by('fecha_evento')
+        # Comisión de ventas devengada por cotización (Issue #505): informativa, no mueve la utilidad bruta.
+        comisiones = dict(ComisionContratacion.objects.filter(cotizacion__in=cotizaciones)
+                          .values_list('cotizacion_id', 'devengado'))
 
         eventos = []
         t = dict.fromkeys(
-            ('venta', 'iva', 'base', 'gasto_fiscal', 'iva_acreditable', 'gasto_nofiscal', 'utilidad'), cero)
+            ('venta', 'iva', 'base', 'gasto_fiscal', 'iva_acreditable', 'gasto_nofiscal', 'utilidad',
+             'comision'), cero)
         for cot in cotizaciones:
             base = cot.subtotal - cot.descuento
             fiscal = iva_acr = nofiscal = cero
@@ -205,7 +210,7 @@ class RentabilidadEventosService:
                 'cliente': cot.cliente.nombre, 'evento': cot.nombre_evento,
                 'venta': cot.precio_final, 'iva': cot.iva, 'base': base,
                 'gasto_fiscal': fiscal, 'iva_acreditable': iva_acr, 'gasto_nofiscal': nofiscal,
-                'utilidad': base - fiscal - nofiscal,
+                'utilidad': base - fiscal - nofiscal, 'comision': comisiones.get(cot.pk, cero),
             }
             for clave in t:
                 t[clave] += fila[clave]
@@ -246,6 +251,7 @@ class RentabilidadEventosService:
             'costos_no_deducibles': costos_no_deducibles,
             'costos_totales': costos_deducibles + costos_no_deducibles,
             'utilidad_neta': t['base'] - costos_deducibles - costos_no_deducibles,
+            'utilidad_tras_comisiones': t['base'] - costos_deducibles - costos_no_deducibles - t['comision'],
             'iva_acreditable': iva_acreditable,
             'iva_por_pagar': t['iva'] - iva_acreditable,
         }

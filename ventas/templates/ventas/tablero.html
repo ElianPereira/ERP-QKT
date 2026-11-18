@@ -1,0 +1,77 @@
+{% extends "admin/base_site.html" %}
+{% load qkt_documentos %}
+{% comment %}Tablero «Ventas» (Issue #505, PR 5). Solo Dirección. Todo viene de ventas/services_tablero.py.{% endcomment %}
+
+{% block content %}
+<div class="qkt-pagina qkt-pagina--ancha">
+    <div class="qkt-pagina__cabecera">
+        <h1 class="qkt-pagina__titulo"><i class="fas fa-chart-bar" aria-hidden="true"></i> Ventas · {{ d.desde|date:"d/m/Y" }} al {{ d.hasta|date:"d/m/Y" }}</h1>
+        <form method="get" class="qkt-filtros-pagina">
+            <label class="qkt-campo"><span>Desde</span><input type="date" name="desde" value="{{ d.desde|date:'Y-m-d' }}"></label>
+            <label class="qkt-campo"><span>Hasta</span><input type="date" name="hasta" value="{{ d.hasta|date:'Y-m-d' }}"></label>
+            <button class="qkt-btn qkt-btn--secundario" type="submit"><i class="fas fa-filter" aria-hidden="true"></i> Ver</button>
+        </form>
+        <div class="qkt-botonera">
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'admin:ventas_cortecomision_changelist' %}"><i class="fas fa-cut" aria-hidden="true"></i> Cortes</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'admin:ventas_entregaefectivo_changelist' %}"><i class="fas fa-hand-holding" aria-hidden="true"></i> Entregas</a>
+            <a class="qkt-btn qkt-btn--secundario" href="{% url 'reportes:comisiones' %}?fecha_inicio={{ d.desde|date:'Y-m-d' }}&fecha_fin={{ d.hasta|date:'Y-m-d' }}"><i class="fas fa-file-pdf" aria-hidden="true"></i> Reporte</a>
+        </div>
+    </div>
+
+    <div class="qkt-kpis">
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Contrataciones</div><div class="qkt-kpi__valor">{{ totales.contrataciones }}</div><div class="qkt-kpi__sub">{{ totales.cotizaciones }} cotización{{ totales.cotizaciones|pluralize:",es" }} · cierre {% if totales.tasa_cierre is None %}—{% else %}{{ totales.tasa_cierre }} %{% endif %}</div></div>
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Venta sin IVA</div><div class="qkt-kpi__valor">{{ totales.venta_sin_iva|moneda }}</div><div class="qkt-kpi__sub">De lo contratado en el periodo</div></div>
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Visitas atendidas</div><div class="qkt-kpi__valor">{{ totales.visitas_atendidas }}</div><div class="qkt-kpi__sub">{{ totales.visitas_agendadas }} agendada{{ totales.visitas_agendadas|pluralize }} · {{ totales.visitas_no_llego }} no llegó · {{ totales.visitas_sobre_tope }} sobre el tope</div></div>
+        <div class="qkt-kpi"><div class="qkt-kpi__label">Costo de ventas</div><div class="qkt-kpi__valor">{{ totales.costo_de_ventas|moneda }}</div><div class="qkt-kpi__sub">Devengado {{ totales.devengado|moneda }} · pagado {{ totales.pagado|moneda }}</div></div>
+        <div class="qkt-kpi{% if totales.por_pagar %} qkt-kpi--alerta{% endif %}"><div class="qkt-kpi__label">Por pagar</div><div class="qkt-kpi__valor">{{ totales.por_pagar|moneda }}</div><div class="qkt-kpi__sub">Saldo en contra {{ totales.saldo_en_contra|moneda }} · absorbido {{ totales.absorbido|moneda }}</div></div>
+        <div class="qkt-kpi{% if totales.efectivo_por_entregar %} qkt-kpi--alerta{% endif %}"><div class="qkt-kpi__label">Efectivo por entregar</div><div class="qkt-kpi__valor">{{ totales.efectivo_por_entregar|moneda }}</div><div class="qkt-kpi__sub">Cobros de clientes; nunca se compensa con comisiones</div></div>
+    </div>
+
+    {% for p in d.personas %}
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-user-tie" aria-hidden="true"></i> {{ p.vendedor.nombre }}{% if not p.vendedor.activo %} <span class="qkt-badge qkt-badge--neutro">Baja</span>{% endif %}</h2></div>
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Concepto</th><th class="qkt-der">Cifra</th><th>Nota</th></tr></thead>
+                <tbody>
+                    <tr><th>Visitas atendidas / no llegó</th><td class="qkt-der qkt-num">{{ p.visitas.atendidas }} / {{ p.visitas.no_llego }}</td><td>{{ p.visitas.pagadas }} pagada{{ p.visitas.pagadas|pluralize }} · {{ p.visitas.sobre_tope }} sobre el tope semanal · {{ p.visitas.manuales }} manual{{ p.visitas.manuales|pluralize:",es" }}</td></tr>
+                    <tr><th>Cotizaciones / contrataciones</th><td class="qkt-der qkt-num">{{ p.cotizaciones }} / {{ p.contrataciones }}</td><td>Cierre {% if p.tasa_cierre is None %}—{% else %}{{ p.tasa_cierre }} %{% endif %} · de visita a contratación {% if p.visita_a_contratacion is None %}—{% else %}{{ p.visita_a_contratacion }} %{% endif %}</td></tr>
+                    <tr><th>Venta sin IVA</th><td class="qkt-der qkt-num">{{ p.venta_sin_iva|moneda }}</td><td></td></tr>
+                    <tr><th>Escalón del {{ p.escalon.anio|stringformat:"d" }}</th><td class="qkt-der qkt-num">{{ p.escalon.contrataciones_anio }}</td><td>{% if p.escalon.sin_condiciones %}Sin Condiciones aceptadas{% else %}La siguiente paga {{ p.escalon.monto_siguiente|moneda }}{% if p.escalon.faltan_para_escalon %}; a {{ p.escalon.faltan_para_escalon }} contratación{{ p.escalon.faltan_para_escalon|pluralize:",es" }} pasa a {{ p.escalon.monto_proximo_escalon|moneda }}{% endif %}{% endif %}</td></tr>
+                    <tr><th>Devengado (visitas + comisiones)</th><td class="qkt-der qkt-num">{{ p.devengado|moneda }}</td><td>Visitas {{ p.visitas_devengado|moneda }} · comisiones {{ p.comisiones_devengado|moneda }}</td></tr>
+                    <tr><th>Pagado en el periodo</th><td class="qkt-der qkt-num">{{ p.pagado|moneda }}</td><td></td></tr>
+                    <tr><th>Por pagar</th><td class="qkt-der qkt-num">{{ p.por_pagar|moneda }}</td><td>Saldo en contra {{ p.saldo_en_contra|moneda }} · absorbido {{ p.absorbido|moneda }}{% if p.no_devengado_por_baja %} · no devengado por la baja {{ p.no_devengado_por_baja|moneda }}{% endif %}</td></tr>
+                    <tr><th>Efectivo por entregar</th><td class="qkt-der qkt-num">{{ p.efectivo_por_entregar|moneda }}</td><td></td></tr>
+                </tbody>
+            </table>
+        </div>
+        {% if p.filas %}
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla">
+                <thead><tr><th>Folio</th><th>Cliente</th><th>Servicio</th><th>N.º del año</th><th class="qkt-der">Venta sin IVA</th><th class="qkt-der">Comisión</th><th class="qkt-der">Devengado</th><th class="qkt-der">Por devengar</th><th>Estado</th></tr></thead>
+                <tbody>
+                {% for f in p.filas %}
+                    <tr><th><a href="{% url 'admin:comercial_cotizacion_change' f.cotizacion_id %}">{{ f.folio }}</a></th><td>{{ f.cliente }}</td><td>{{ f.servicio }}</td><td class="qkt-num">{{ f.numero }}</td>
+                        <td class="qkt-der qkt-num">{{ f.venta_sin_iva|moneda }}</td><td class="qkt-der qkt-num">{{ f.total|moneda }}</td><td class="qkt-der qkt-num">{{ f.devengado|moneda }}</td><td class="qkt-der qkt-num">{{ f.por_devengar|moneda }}</td><td>{{ f.estado }}</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+    {% empty %}
+    <div class="qkt-aviso qkt-aviso--info"><span class="qkt-aviso__titulo">Sin personal de ventas</span> Da de alta al Empleado con puesto Ventas para ver su actividad aquí.</div>
+    {% endfor %}
+
+    {% if d.efectivo %}
+    <div class="qkt-panel">
+        <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-hand-holding" aria-hidden="true"></i> Efectivo pendiente de entregar</h2></div>
+        <div class="qkt-panel__cuerpo--tabla">
+            <table class="qkt-tabla"><tbody>
+            {% for vendedor, saldo in d.efectivo %}<tr><th>{{ vendedor.nombre }}</th><td class="qkt-der qkt-num">{{ saldo|moneda }}</td></tr>{% endfor %}
+            </tbody></table>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

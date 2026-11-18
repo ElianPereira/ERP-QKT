@@ -53,6 +53,9 @@ class ComisionContratacion(models.Model):
         verbose_name = 'Comisión'
         verbose_name_plural = 'Comisiones'
         ordering = ['-confirmada_en']
+        # Solo habilita el enlace «Mis comisiones» del menú; el candado real es resolver al Empleado
+        # desde `request.user` en el servidor (ventas/views.py).
+        permissions = [('ver_mis_comisiones', 'Puede ver su propia pantalla «Mis comisiones»')]
         indexes = [models.Index(fields=['vendedor', 'anio'], name='ventas_comision_vendedor_anio')]
 
     def __str__(self):

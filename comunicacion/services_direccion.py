@@ -223,7 +223,7 @@ def _url_hallazgos() -> str:
 
 
 def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos, marketing: Optional[dict] = None,
-                  sin_aceptar: int = 0) -> Aviso:
+                  sin_aceptar: int = 0, ventas: str = '') -> Aviso:
     if mes.get('meta_venta'):
         venta = f'{dinero(mes["venta"])} de {dinero(mes["meta_venta"])} ({mes["pct_meta"]} %)'
     else:
@@ -236,6 +236,8 @@ def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos, marke
     if sin_aceptar:
         lineas.append(f'{sin_aceptar} clientes con reservación confirmada sin aceptar el Aviso de Privacidad'
                       if sin_aceptar != 1 else '1 cliente con reservación confirmada sin aceptar el Aviso de Privacidad')
+    if ventas:
+        lineas.append(ventas)
     cierre = ''
     if hallazgos:
         lineas.extend(f'Detecté {n}: {h.titulo}' for n, h in enumerate(hallazgos, 1))
@@ -292,8 +294,10 @@ def enviar_resumen_semanal(hoy=None) -> int:
     hallazgos = detectar(hoy)
     marketing = _bloque_marketing(hoy)
     sin_aceptar = _clientes_sin_aceptar()
+    from ventas.services_avisos import linea_resumen_direccion
     lunes = hoy - timedelta(days=hoy.weekday())
-    comm = _enviar_aviso(telefono, texto_resumen(hoy, mes, caja_segun_libros(), abiertos, hallazgos, marketing, sin_aceptar),
+    comm = _enviar_aviso(telefono, texto_resumen(hoy, mes, caja_segun_libros(), abiertos, hallazgos, marketing, sin_aceptar,
+                                                 linea_resumen_direccion(hoy)),
                          clave=f'dir:resumen:{lunes}:{telefono}')
     if not _enviado(comm):
         return 0

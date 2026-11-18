@@ -33,3 +33,7 @@ Sigue la sección *Cambios de fecha y cancelaciones*.
 :::quehacer Una cotización de Kooxi o de la web no te aparece como tuya
 La atribución se asigna al crear (si la capturas tú), al atender una visita o al dar seguimiento al cliente. Si crees que te corresponde una cotización que muestra a otra persona, avisa a la Dirección con el folio; solo ella puede reasignarla.
 :::
+
+:::quehacer No entiendo mi comisión o creo que falta una visita o venta
+Abre **Mis comisiones**: ahí ves cada contratación con lo ganado y lo que falta por ganar. Si una visita no aparece, revisa que esté cerrada como *Atendida*. Sigue la sección *Mis comisiones* y, si algo no cuadra, avisa a la Dirección con el folio.
+:::

@@ -232,7 +232,7 @@
             </div>
             {% endif %}
 
-            {% if puede_compras or puede_nomina %}
+            {% if puede_compras or puede_nomina or puede_comisiones %}
             <div class="qkt-panel qkt-panel--error">
                 <div class="qkt-panel__cab"><h2 class="qkt-panel__titulo"><i class="fas fa-receipt" aria-hidden="true"></i> Gastos y nómina</h2></div>
                 {% if puede_compras %}
@@ -242,6 +242,10 @@
                 {% if puede_nomina %}
                 {% url 'reportes:nomina' as accion %}
                 {% include "reportes/_form_periodo.html" with titulo="Nómina por periodo" icono="fa-users" %}
+                {% endif %}
+                {% if puede_comisiones %}
+                {% url 'reportes:comisiones' as accion %}
+                {% include "reportes/_form_periodo.html" with titulo="Comisiones por periodo" icono="fa-hand-holding-usd" %}
                 {% endif %}
             </div>
             {% endif %}

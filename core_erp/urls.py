@@ -194,6 +194,9 @@ urlpatterns = [
     # --- MÓDULO MARKETING (solo Dirección) ---
     path('admin/marketing/', include('marketing.urls')),
 
+    # --- MÓDULO VENTAS (tablero: Dirección; «Mis comisiones»: la vendedora) ---
+    path('admin/ventas/', include('ventas.urls')),
+
     # --- PORTAL DEL CLIENTE (público) ---
     path('mi-evento/', portal_acceso, name='portal_acceso'),
     path('mi-evento/<str:token>/', portal_evento, name='portal_evento'),

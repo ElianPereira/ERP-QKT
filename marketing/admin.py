@@ -60,11 +60,11 @@ EDITABLES_LEAD = ('recomendado_por', 'recomendado_por_texto')
 class LeadAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
     """Embudo de prospectos. La etapa la deriva el sistema; solo el motivo de
     pérdida se corrige a mano (y queda en la bitácora)."""
-    list_display = ('prospecto', 'etapa_badge', 'fuente_badge', 'tipo_servicio', 'cotizacion',
+    list_display = ('prospecto', 'etapa_badge', 'fuente_badge', 'tipo_servicio', 'cotizacion', 'vendedor',
                     'primer_contacto', 'ultima_interaccion', 'motivo')
     list_filter = ('etapa', 'fuente', 'tipo_servicio', filtro_periodo('fecha_primer_contacto', 'Primer contacto'))
     search_fields = ('nombre', 'telefono', 'anuncio_titulo')
-    list_select_related = ('cotizacion',)
+    list_select_related = ('cotizacion', 'cotizacion__vendedor')
     columnas_texto = ('prospecto',)
     inlines = [LeadEventoInline]
     fields = ('nombre', 'telefono', 'etapa', 'fuente', 'anuncio_id', 'anuncio_titulo', 'tipo_servicio',
@@ -95,6 +95,11 @@ class LeadAdmin(SoloSuperusuarioMixin, admin.ModelAdmin):
     @admin.display(description='Prospecto', ordering='nombre')
     def prospecto(self, obj):
         return obj.nombre or ('Anonimizado' if obj.anonimizado_en else f'Prospecto {obj.pk}')
+
+    @admin.display(description='Vendedor', ordering='cotizacion__vendedor__nombre')
+    def vendedor(self, obj):
+        cot = obj.cotizacion
+        return cot.vendedor.nombre if cot is not None and cot.vendedor_id else ui.vacio()
 
     @admin.display(description='Etapa', ordering='etapa')
     def etapa_badge(self, obj):

@@ -341,7 +341,8 @@ class RentabilidadYPagosTest(TestCase):
     def test_rentabilidad_pdf(self):
         texto = self._texto_pdf('rentabilidad', **self._periodo())
         self.assertIn('Estado: Ventas reales', texto)
-        self.assertIn('Luis Chan Uc', texto)
+        self.assertIn('Luis', texto)   # el nombre se parte en dos renglones con la columna de comisión
+        self.assertIn('Chan Uc', texto)
         self.assertNotIn('Borrador sin pagar', texto)
         self.assertIn('Utilidad neta $8,500.00', texto)
         self.assertIn('IVA por pagar $1,440.00', texto)
