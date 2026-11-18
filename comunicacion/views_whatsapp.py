@@ -57,6 +57,7 @@ def _firma_valida(request) -> bool:
 def _es_boton_interno(identificador) -> bool:
     """Botones que atiende el ERP (no el agente): bandeja, terminal, FAQ, encuesta, cumplimiento, inspección, visitas,
     órdenes, cancelaciones, ARCO, Dirección, contador y abonos."""
+    from comercial import services_consentimiento as consentimiento
     from marketing.services import medios
 
     return (services_pendientes.es_boton(identificador) or services_terminal.es_boton(identificador)
@@ -66,6 +67,7 @@ def _es_boton_interno(identificador) -> bool:
             or services_inspeccion.es_boton(identificador) or services_visitas.es_boton(identificador)
             or services_ordenes_wa.es_boton(identificador)
             or services_abonos.es_boton(identificador)
+            or consentimiento.es_boton(identificador or '')
             or services_cancelacion.es_boton(identificador) or services_arco.es_boton(identificador)
             or services_direccion.es_boton(identificador) or services_contador.es_boton(identificador))
 

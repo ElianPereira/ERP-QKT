@@ -16,6 +16,7 @@ from django.db.models import Case, F, IntegerField, Q, When
 from django.utils import timezone
 
 from .models import Cotizacion
+from .services_consentimiento import clientes_con_aceptacion_vigente
 
 # Mismo umbral que la Cartera CxC (comercial/views.py::ver_cartera_cxc): por
 # debajo de 50 centavos se considera liquidada.
@@ -235,6 +236,38 @@ class ServicioProductoFilter(admin.SimpleListFilter):
         if campo:
             return queryset.filter(**{campo: True})
         return queryset
+
+
+class PrivacidadFilter(admin.SimpleListFilter):
+    """¿El cliente aceptó la versión vigente del Aviso de Privacidad? (Issue #506).
+    Sirve en Clientes y en Cotizaciones (por su cliente)."""
+    title = 'Privacidad'
+    parameter_name = 'privacidad'
+
+    def lookups(self, request, model_admin):
+        return (('aceptado', 'Aceptado'), ('pendiente', 'Pendiente'))
+
+    def queryset(self, request, queryset):
+        if self.value() not in ('aceptado', 'pendiente'):
+            return queryset
+        campo = 'pk' if queryset.model.__name__ == 'Cliente' else 'cliente_id'
+        vigentes = clientes_con_aceptacion_vigente()
+        filtro = {f'{campo}__in': vigentes}
+        return queryset.filter(**filtro) if self.value() == 'aceptado' else queryset.exclude(**filtro)
+
+
+def columna_privacidad(vigentes: set, cliente_de):
+    """Columna «Privacidad» (badge Aceptado / Pendiente) para una lista del admin.
+    `vigentes` viene de `clientes_con_aceptacion_vigente()`, una consulta por pantalla."""
+    from core_erp import admin_ui as ui
+
+    def privacidad(obj):
+        cliente = cliente_de(obj)
+        if cliente.pk in vigentes:
+            return ui.badge('Aceptado', ui.EXITO)
+        return ui.badge('Pendiente', ui.ALERTA)
+    privacidad.short_description = 'Privacidad'
+    return privacidad
 
 
 class VendedorFilter(admin.SimpleListFilter):

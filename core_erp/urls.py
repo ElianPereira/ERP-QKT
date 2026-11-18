@@ -40,6 +40,7 @@ from comercial.views_openpay import (
 from comercial.views_portal import (
     landing_publico,
     portal_acceso,
+    portal_aceptar_privacidad,
     portal_descargar_contrato,
     portal_descargar_cotizacion,
     portal_descargar_factura,
@@ -188,6 +189,7 @@ urlpatterns = [
 
     # --- MÓDULO INDICADORES (solo Dirección) ---
     path('admin/indicadores/', include('indicadores.urls')),
+    path('admin/manual/', include('manual.urls')),
 
     # --- MÓDULO MARKETING (solo Dirección) ---
     path('admin/marketing/', include('marketing.urls')),
@@ -195,6 +197,7 @@ urlpatterns = [
     # --- PORTAL DEL CLIENTE (público) ---
     path('mi-evento/', portal_acceso, name='portal_acceso'),
     path('mi-evento/<str:token>/', portal_evento, name='portal_evento'),
+    path('mi-evento/<str:token>/privacidad/', portal_aceptar_privacidad, name='portal_aceptar_privacidad'),
     path('mi-evento/<str:token>/cotizacion.pdf', portal_descargar_cotizacion, name='portal_descargar_cotizacion'),
     path('mi-evento/<str:token>/plan-pagos.pdf', portal_descargar_plan, name='portal_descargar_plan'),
     path('mi-evento/<str:token>/contrato.pdf', portal_descargar_contrato, name='portal_descargar_contrato'),

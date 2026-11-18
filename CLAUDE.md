@@ -121,7 +121,7 @@ pre-commit · CI en GitHub Actions.
 | Acción | Comando |
 |---|---|
 | Test de una app | `python manage.py test <app>` |
-| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing ventas` |
+| Test completo (= CI, con `DJANGO_DEBUG=True DJANGO_ALLOWED_HOSTS='*'`) | `python manage.py test comercial contabilidad facturacion nomina legal core_erp comunicacion reportes operaciones cumplimiento indicadores marketing ventas manual` |
 | Lint | `ruff check .` / autofix: `ruff check --fix .` |
 | Chequeo Django | `python manage.py check` |
 | Detectar migraciones faltantes | `python manage.py makemigrations --check --dry-run` |
@@ -142,6 +142,9 @@ pre-commit · CI en GitHub Actions.
 - `ventas/` — personal de ventas (Issue #505): atribución de cotizaciones al vendedor (`services_atribucion`), grupo
   `Vendedor` y sus candados (`permisos.py`), motor de comisiones (`services_comisiones`), cortes y pago
   (`services_cortes`) y control del efectivo (`services_efectivo`); el tablero «Ventas» y «Mis comisiones» llegan en el PR 5.
+- `manual/` — manual de procedimientos por rol (Issue #507): secciones Markdown en `manual/secciones/`, vista
+  `/admin/manual/`, PDF por rol, capturas automáticas. **Regla permanente**: un PR que cambie una pantalla o flujo
+  que el manual describe actualiza su sección y corre `python manage.py generar_capturas_manual` en el mismo PR.
 - `legal/` — versionado de documentos legales (SHA-256, una sola versión
   vigente por tipo), evidencia de consentimiento y bitácora ARCO.
 - `core_erp/` — `settings.py`, `urls.py` raíz, rate limiting, `impuestos.py`
@@ -281,6 +284,27 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-11-17 — **Consentimiento de privacidad automático para cotizaciones capturadas en el admin** (Issue #506; sin zonas restringidas:
+  no se tocó `legal/`, `views_openpay.py`, `services_openpay.py` ni `contabilidad/services.py`; **sin migraciones**). Principio: cero clics
+  para el personal. `comercial/services_consentimiento.py`: `tiene_aceptacion_vigente(cliente)` = alguna `AceptacionLegal` del cliente cuyo
+  snapshot trae la **versión vigente del Aviso** (versión nueva = se vuelve a pedir una vez; sin Aviso publicado no se exige nada, así los
+  tests viejos no cambian). **(1)** El PDF y los dos correos de cotización llevan el enlace al Aviso en el pie. **(2) Portal**: tarjeta
+  arriba de todo con las mismas casillas del cotizador (parcial compartido `comercial/_consentimiento_casillas.html`, sin texto nuevo) y
+  `POST /mi-evento/<token>/privacidad/` (`@rate_limit`, CSRF, origen `PORTAL_CLIENTE` con IP y navegador). Sin aceptar puede ver todo; el pago en
+  línea, la identificación, la firma y las solicitudes quedan deshabilitados en la plantilla y **firmar y solicitar cambio/cancelación se
+  rechazan también en el servidor**; el pago sigue con su propia casilla de checkout (`views_openpay.py` intacto). **(3) WhatsApp**: tarea diaria
+  `pedir_consentimientos_pendientes` (10:20 en el programador) para clientes con cotización CONFIRMADA o con pago de una cotización abierta
+  (nunca históricas, cerradas, expiradas, canceladas ni condonaciones). Con ventana abierta manda `MENSAJE_CONSENTIMIENTO` de Kooxi con
+  tres botones; sin ventana, la plantilla `META_WA_PLANTILLA_CONSENTIMIENTO` (texto en `docs/whatsapp_plantilla_consentimiento.md`; sin ella no
+  se manda y se reintenta al día siguiente). Botones `con:<cliente>:ok|promo|no:<versión>`: valen solo desde el teléfono del cliente, un botón
+  de una versión vieja no registra, y la evidencia es `AceptacionLegal` origen `WHATSAPP` con el `wamid`. Una sola solicitud por cliente y
+  versión (`consentimiento:<cliente>:<versión>:whatsapp`; un envío fallido libera su clave); no es promoción: no mira MARKETING ni
+  `BajaWhatsApp`. **(4) Visibilidad**: columna y filtro «Privacidad» en Clientes, el dato en la cotización y una línea en el resumen del
+  lunes solo si hay confirmadas sin aceptar. **(5) Única excepción humana**: cliente confirmado sin teléfono ni correo = `Pendiente` NORMAL
+  idempotente para el ENCARGADO (la bandeja es por rol, no por usuario; el detalle nombra a quien capturó). Los mensajes usan `ComunicacionCliente`
+  tipo `OTRO` para no agregar una opción nueva (evita una migración). Pendiente del propietario: someter la plantilla en Meta, definir
+  `META_WA_PLANTILLA_CONSENTIMIENTO` en `web` y Programador, y el visto bueno del abogado a reutilizar en el portal el texto del cotizador.
+
 
 - 2026-11-17 — **Personal de ventas, fase 2 (PR 3 + PR 4 del Issue #505)** (rama `claude/ventas-505-fase2`; **mueve dinero y
   contabilidad**: revisión del propietario antes del merge; sin zonas restringidas; migraciones aditivas `ventas.0001`, `ventas.0002`,
@@ -351,7 +375,7 @@ salvo que queden obsoletas.
   (`@no_para_vendedor`: comparten `view_cotizacion`/`view_pago` con el trabajo diario y la prueba los encontró abiertos), tablero inicial
   sin ventas/gastos/utilidad (ni se calculan), sin costo, margen, componentes ni insumos en Productos y Cotizaciones. **Hallazgo legal
   para el propietario**: una cotización capturada en el admin **no deja ninguna `AceptacionLegal`** (solo el cotizador web y Kooxi la
-  registran); no se inventó un flujo, queda pendiente de definir con el abogado. **2 (visitas)**: rol `VENTAS` en `Responsable`;
+  registran); no se inventó un flujo ahí: lo resuelve el Issue #506 (consentimiento automático por portal y WhatsApp, ver la entrada del 2026-11-17 sobre consentimiento). **2 (visitas)**: rol `VENTAS` en `Responsable`;
   `destinos_ventas()`/`rol_ventas()` (sin responsable de VENTAS todo cae al encargado como antes; Dirección conserva su copia). A Ventas:
   cotización nueva, solicitud de visita (con botones), agenda de la víspera (siempre, con teléfono; «Mañana no tienes visitas agendadas»),
   aviso de 45 min, llegada de una **visita**, prospecto sin respuesta y pase a humano de un cliente con cotización viva atendida por ella
@@ -391,6 +415,22 @@ salvo que queden obsoletas.
   `hide_models`; mixin `CambiarCuentaBancariaMixin` compartido con Pagos) y documentación en `PROJECT_CONTEXT.md`. **Pendiente**: cuando
   llegue el primer PDF real de la Pagadora (1–2 de diciembre) añadir su texto exacto a `FondeoTraspasoCuentasPropiasTest` y ajustar
   `TEXTO_FONDEO` si difiere. El parser de BBVA no se tocó; no se pudo comprobar el formato contra un PDF real.
+
+- 2026-11-17 — **Manual de procedimientos por rol, M1: infraestructura** (Issue #507; sin zonas restringidas; migración
+  `manual.0001`, una tabla nueva `DescargaManual`). App `manual/`: secciones en `manual/secciones/NN_nombre.md` con cabecera
+  (`titulo/capitulo/orden/roles`), bloques `:::rol X`, `:::correcto|nohagas|quehacer|nota`, valores del negocio con
+  `{{ dias_pago_total.EVENTO }}` (`services.contexto_negocio`, nunca escritos a mano). **Rol derivado del usuario, nunca de la
+  URL** (`roles_de`): superusuario todo; grupo `Vendedor`→VENTAS (lo crea la app `ventas`, #505), `Ventas`→ENCARGADO,
+  `Contabilidad`→CONTADOR; otro staff solo TODOS. Sección fuera de tu rol = 404 igual que inexistente. **`[CONFIRMAR:]` = borrador**:
+  solo el superusuario la ve; el PDF «Completo» del superusuario la incluye marcada, el de un rol nunca. PDF
+  (`core_erp/documentos.py`, `manual/pdf_manual.html`): portada, índice con páginas, pie con versión y «Descargado por»; un usuario
+  normal siempre recibe el suyo (`?rol=` solo lo respeta un superusuario). Bitácora `DescargaManual` (solo superusuario).
+  `generar_capturas_manual [--solo n]` levanta una base temporal con `manual/demo.py` (datos inventados) y fotografía
+  `manual/capturas.py` con Playwright a `static/manual/img/*.webp`; **solo corre con SQLite local** (el corredor crea una base
+  de pruebas, contra Postgres sería una base `test_` en ese servidor). Hallazgos al fotografiar: el botón se llama «Agregar Pago
+  Aprobado», el formulario de pago tiene pestañas y «Correos» es solo Dirección (el contador no lo ve): el texto se corrigió contra
+  la pantalla real, no contra el código. Playwright de Python no viene en `requirements.lock` (como `test_movil`): `pip install
+  playwright`. Tres secciones de muestra (TODOS, ENCARGADO, CONTADOR); dos quedan en borrador por sus `[CONFIRMAR:]`.
 
 - 2026-11-16 — **Segunda cuenta BBVA, PR 3 de 3: cambio manual de cuenta y pauta con dos cuentas** (Issue #499; **mueve contabilidad**:
   revisión del propietario; apilado sobre el PR 2; sin zonas restringidas; **sin migración**). `services_cuenta_bancaria.cambiar_cuenta_bancaria

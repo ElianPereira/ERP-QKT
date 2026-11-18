@@ -127,6 +127,7 @@ TAREAS = (
           ('--aplicar',)),
     Tarea('preparar_renovaciones', 'preparar_renovaciones', diario('07:20'), 6 * HORA, ('--aplicar',)),
     Tarea('enviar_listas_compras', 'enviar_listas_compras', diario('08:30'), 6 * HORA),
+    Tarea('pedir_consentimientos_pendientes', 'pedir_consentimientos_pendientes', diario('10:20'), 6 * HORA),
     Tarea('enviar_encuestas', 'enviar_encuestas', diario('10:30'), 6 * HORA),
     Tarea('enviar_reactivaciones', 'enviar_reactivaciones', diario('11:15'), 6 * HORA),
     Tarea('solicitar_inspecciones_deposito', 'solicitar_inspecciones_deposito', diario('09:45'), 6 * HORA),

@@ -222,7 +222,8 @@ def _url_hallazgos() -> str:
     return _base_url() + reverse('admin:comunicacion_hallazgo_changelist') + '?estado__exact=PROPUESTO'
 
 
-def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos, marketing: Optional[dict] = None) -> Aviso:
+def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos, marketing: Optional[dict] = None,
+                  sin_aceptar: int = 0) -> Aviso:
     if mes.get('meta_venta'):
         venta = f'{dinero(mes["venta"])} de {dinero(mes["meta_venta"])} ({mes["pct_meta"]} %)'
     else:
@@ -232,6 +233,9 @@ def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos, marke
         ocupacion += f' (plan {mes["ocupacion_plan"]} %)'
     lineas = [f'Venta de {mes["etiqueta"]}: {venta}', ocupacion, f'Caja según libros: {dinero(caja)}',
               f'Pendientes abiertos: {abiertos}']
+    if sin_aceptar:
+        lineas.append(f'{sin_aceptar} clientes con reservación confirmada sin aceptar el Aviso de Privacidad'
+                      if sin_aceptar != 1 else '1 cliente con reservación confirmada sin aceptar el Aviso de Privacidad')
     cierre = ''
     if hallazgos:
         lineas.extend(f'Detecté {n}: {h.titulo}' for n, h in enumerate(hallazgos, 1))
@@ -242,6 +246,16 @@ def texto_resumen(hoy, mes: dict, caja: Decimal, abiertos: int, hallazgos, marke
             cierre = (cierre + '\n' if cierre else '') + f'Decisiones de marketing: {marketing["enlace"]}'
     return Aviso(titulo=f'Resumen semanal del {hoy:%d/%m}', categoria='Dirección', lineas=lineas,
                  cierre=cierre, enlace=url_bandeja())
+
+
+def _clientes_sin_aceptar() -> int:
+    """Línea del resumen solo si hay casos; un fallo no tumba el resumen."""
+    try:
+        from comercial.services_consentimiento import contar_confirmados_sin_aceptar
+        return contar_confirmados_sin_aceptar()
+    except Exception:
+        logger.exception("Resumen semanal: falló el conteo de clientes sin aceptar el Aviso")
+        return 0
 
 
 def _bloque_marketing(hoy) -> Optional[dict]:
@@ -277,8 +291,9 @@ def enviar_resumen_semanal(hoy=None) -> int:
     abiertos = Pendiente.objects.filter(estado='ABIERTO', rol='DIRECCION').count()
     hallazgos = detectar(hoy)
     marketing = _bloque_marketing(hoy)
+    sin_aceptar = _clientes_sin_aceptar()
     lunes = hoy - timedelta(days=hoy.weekday())
-    comm = _enviar_aviso(telefono, texto_resumen(hoy, mes, caja_segun_libros(), abiertos, hallazgos, marketing),
+    comm = _enviar_aviso(telefono, texto_resumen(hoy, mes, caja_segun_libros(), abiertos, hallazgos, marketing, sin_aceptar),
                          clave=f'dir:resumen:{lunes}:{telefono}')
     if not _enviado(comm):
         return 0

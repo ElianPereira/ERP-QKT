@@ -34,8 +34,10 @@ from .admin_filtros import (
     PagoCotizacionFilter,
     PaqueteBarraFilter,
     PolizaCompraFilter,
+    PrivacidadFilter,
     ServicioProductoFilter,
     VendedorFilter,
+    columna_privacidad,
 )
 from .choices import PosicionLanding
 from .models import (
@@ -78,6 +80,7 @@ from .models import (
     TipoEvento,
 )
 from .services import CalculadoraBarraService
+from .services_consentimiento import clientes_con_aceptacion_vigente, tiene_aceptacion_vigente
 from .widgets import TimeSlotWidget
 
 logger = logging.getLogger(__name__)
@@ -486,13 +489,17 @@ class ProductoAdmin(admin.ModelAdmin):
 class ClienteAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'tipo_persona', 'alerta_tipo_persona', 'es_cliente_fiscal',
                     'rfc', 'email', 'telefono')
-    list_filter = (('tipo_persona', con_titulo('Tipo de persona')), ('es_cliente_fiscal', con_titulo('Datos fiscales')), 'origen')
+    list_filter = (('tipo_persona', con_titulo('Tipo de persona')), ('es_cliente_fiscal', con_titulo('Datos fiscales')), 'origen',
+                   PrivacidadFilter)
     search_fields = ('nombre', 'rfc', 'razon_social')
     fieldsets = (
         ('Datos Generales', {'fields': ('nombre', 'email', 'telefono', 'origen', 'fecha_registro')}),
         ('Datos Fiscales', {'fields': ('es_cliente_fiscal', 'tipo_persona', 'rfc', 'razon_social', 'codigo_postal_fiscal', 'regimen_fiscal', 'uso_cfdi')}),
     )
     readonly_fields = ('fecha_registro',)
+
+    def get_list_display(self, request):
+        return (*self.list_display, columna_privacidad(clientes_con_aceptacion_vigente(), lambda c: c))
 
     def alerta_tipo_persona(self, obj):
         """
@@ -790,10 +797,10 @@ class CotizacionAdmin(admin.ModelAdmin):
         ('Cancelación', {'fields': ('motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion'), 'classes': ('collapse',)}),
         ('Documentos', {
             'fields': ('archivo_pdf', 'identificacion_oficial', 'identificacion_revisada',
-                       'identificacion_revisada_por', 'identificacion_revisada_en', 'enviar_email_btn'),
+                       'identificacion_revisada_por', 'identificacion_revisada_en', 'privacidad_cliente', 'enviar_email_btn'),
         }),
     )
-    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por', 'comision_ventas')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por', 'privacidad_cliente', 'comision_ventas')
 
     # Costos y márgenes que el grupo Vendedor no ve (Issue #505).
     CAMPOS_DE_COSTO = ('factor_utilidad_barra', 'resumen_barra_html')
@@ -910,6 +917,14 @@ class CotizacionAdmin(admin.ModelAdmin):
         if obj.estado in ('CANCELADA', 'EXPIRADA') or saldo <= 0:
             return ui.monto(max(saldo, Decimal('0.00')), tono=None)
         return ui.monto(saldo, tono=ui.ALERTA)
+
+    @admin.display(description='Privacidad del cliente')
+    def privacidad_cliente(self, obj):
+        if not obj or not obj.cliente_id:
+            return ui.vacio()
+        if tiene_aceptacion_vigente(obj.cliente):
+            return ui.badge('Aceptado', ui.EXITO)
+        return ui.badge('Pendiente', ui.ALERTA)
 
     def enviar_email_btn(self, obj):
         if not obj.pk:
