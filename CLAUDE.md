@@ -283,6 +283,21 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-11-18 — **Manual de procedimientos, M2 + M3 + M4** (Issue #507; sin zonas restringidas; **sin migraciones**; un solo PR en borrador,
+  commits `M2:`/`M3:`/`M4:`). 42 secciones en `manual/secciones/` (30 publicadas, 12 borradores con `[CONFIRMAR:]`): Ventas y reglas generales
+  (M2), Encargado y Operación (M3), Contador y Dirección (M4). Todo procedimiento del ERP se escribió leyendo el código (admin, servicios,
+  signals); lo que es práctica del negocio quedó como borrador. **Hallazgo corregido de M1**: la sección «Registrar un cobro» decía marcar
+  «¿Solicitar factura?»; ese campo ya no hace nada: **todo `Pago` genera su solicitud** (a Público en general si el cliente no tiene RFC y
+  razón social completos), así que la regla es capturar los datos fiscales **antes** de cobrar. `contexto_negocio()` gana
+  `dias_expiracion_sin_pago`, `deposito_evento_pct`, `deposito_por_habitacion`, `dias_devolucion_deposito` y `deposito_inspeccion_horas`; las
+  tablas de cancelación y de horarios de visita se llenan con `{% for %}` desde `reglas_contrato` y `HorarioVisita` (un test lo fija). Guardián
+  nuevo `SinInformacionReservadaTest`: ningún rol distinto de Dirección recibe en su texto costos, márgenes, utilidad, configuración
+  (Nómina → Condiciones, Indicadores, variables, programador, supuestos); el contador queda exento solo de «Contabilidad →» y «costos» (su
+  catálogo de cuentas). **No se generaron capturas nuevas** (las secciones nuevas no referencian imágenes). Las pantallas de comisiones y
+  cortes (PR #512) no estaban en main: `mis-comisiones` y `comisiones-calculo-y-cortes` son borrador. Tests: `core_erp` tiene 2 fallos
+  previos que dependen del entorno (`test_origen_railway_ajeno_recibe_403`, `test_robots_del_erp_bloquea_todo`, 400 por `ALLOWED_HOSTS='*'`),
+  no de este cambio.
+
 - 2026-11-17 — **Consentimiento de privacidad automático para cotizaciones capturadas en el admin** (Issue #506; sin zonas restringidas:
   no se tocó `legal/`, `views_openpay.py`, `services_openpay.py` ni `contabilidad/services.py`; **sin migraciones**). Principio: cero clics
   para el personal. `comercial/services_consentimiento.py`: `tiene_aceptacion_vigente(cliente)` = alguna `AceptacionLegal` del cliente cuyo

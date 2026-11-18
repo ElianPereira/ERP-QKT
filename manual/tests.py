@@ -350,8 +350,8 @@ class SinInformacionReservadaTest(TestCase):
                 html = sv.render_cuerpo(s, {rol, sv.TODOS})
                 texto = strip_tags(html)
                 for m in self.PROHIBIDO.finditer(texto):
-                    if rol == 'CONTADOR' and m.group(0).lower().startswith('contabilidad'):
-                        continue   # el contador sí trabaja en Contabilidad
+                    if rol == 'CONTADOR' and m.group(0).lower().startswith(('contabilidad', 'costo')):
+                        continue   # el contador trabaja en Contabilidad y en su catálogo hay cuentas de costos
                     self.fail(f'{s.slug} ({rol}) menciona «{m.group(0)}»')
 
 
