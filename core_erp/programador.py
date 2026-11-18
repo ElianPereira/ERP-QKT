@@ -148,6 +148,12 @@ TAREAS = (
     Tarea('revisar_respuesta_prospectos', 'revisar_respuesta_prospectos', cada(5), 30 * MIN),
     Tarea('enviar_eventos_conversion', 'enviar_eventos_conversion', cada(15), 45 * MIN),
     Tarea('mantener_referidos', 'mantener_referidos', diario('06:55'), 6 * HORA),
+    Tarea('sincronizar_comisiones', 'sincronizar_comisiones', diario('06:30'), 6 * HORA),
+    Tarea('cortes_ventas_visitas', 'generar_cortes_ventas', semanal(DOMINGO, '08:20'), 24 * HORA, ('--visitas',)),
+    Tarea('cortes_ventas_comisiones_16', 'generar_cortes_ventas', mensual(16, '08:20'), 24 * HORA,
+          ('--comisiones',)),
+    Tarea('cortes_ventas_comisiones_01', 'generar_cortes_ventas', mensual(1, '08:20'), 24 * HORA,
+          ('--comisiones',)),
     Tarea('sincronizar_resenas_google', 'sincronizar_resenas_google', diario('09:00'), 6 * HORA),
 )
 

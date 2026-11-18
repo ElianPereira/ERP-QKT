@@ -35,8 +35,8 @@ UMBRAL_DIAS_LIBRES = 15
 HORIZONTE_DIAS_LIBRES = 30
 CENTAVOS = Decimal('0.01')
 
-RE_BOTON = re.compile(r'^(hal|nom):(\d+):(tarea|ign|ok)$')
-ACCIONES_VALIDAS = {'hal': ('tarea', 'ign'), 'nom': ('ok',)}
+RE_BOTON = re.compile(r'^(hal|nom|cor):(\d+):(tarea|ign|ok)$')
+ACCIONES_VALIDAS = {'hal': ('tarea', 'ign'), 'nom': ('ok',), 'cor': ('ok',)}
 
 
 def id_boton_hallazgo(hallazgo_id: int, accion: str) -> str:
@@ -371,6 +371,20 @@ def aprobar_nomina(aprobacion, usuario=None, telefono: str = '') -> bool:
 
 # ───────────────────────────── Botones ────────────────────────────────────────
 
+def _atender_corte(pk: int, telefono: str) -> Optional[str]:
+    """`cor:<id>:ok`: aprueba un corte de comisiones. Aprobar no paga."""
+    from ventas.models import CorteComision
+    from ventas.services_cortes import aprobar_corte
+
+    corte = CorteComision.objects.select_related('vendedor').filter(pk=pk).first()
+    if corte is None:
+        return None
+    if aprobar_corte(corte, telefono=telefono):
+        return (f'✅ Listo, quedó aprobado el corte de {corte.vendedor.nombre} ({dinero(corte.total)}). '
+                f'Aprobar no paga: el pago se marca en el ERP.')
+    return 'Ese corte ya estaba atendido.'
+
+
 def atender_boton(telefono: str, texto: str) -> Optional[str]:
     """`hal:<id>:tarea|ign` y `nom:<id>:ok`: solo valen desde el teléfono de DIRECCION.
     Devuelve el texto con que contestarle, o None si no hizo nada."""
@@ -389,6 +403,8 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
                     f'{aprobacion.semana_fin:%d/%m} ({dinero(aprobacion.total)}). Solo es constancia: '
                     f'la transferencia se hace en el banco.')
         return 'Esa nómina ya estaba aprobada.'
+    if tipo == 'cor':
+        return _atender_corte(pk, normalizar_telefono_wa(telefono))
     hallazgo = Hallazgo.objects.filter(pk=pk).first()
     if hallazgo is None:
         return None

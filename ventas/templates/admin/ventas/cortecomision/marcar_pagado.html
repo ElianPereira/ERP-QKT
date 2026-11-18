@@ -1,0 +1,57 @@
+{% extends "admin/base_site.html" %}
+{% load admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">Inicio</a>
+› <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+› <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+› Marcar pagado
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="qkt-pagina qkt-pagina--angosta">
+  <div class="qkt-pagina__cabecera">
+    <h1 class="qkt-pagina__titulo">{{ title }}</h1>
+  </div>
+
+  <div class="qkt-aviso qkt-aviso--alerta">
+    Se registra el pago y se genera la póliza de gasto no deducible. Si la póliza no puede asentarse,
+    el pago no queda registrado. Solo se pagan cortes aprobados.
+  </div>
+
+  <ul class="qkt-lista-objetos">
+    {% for obj in queryset %}<li>{{ obj }} — ${{ obj.total }} ({{ obj.get_estado_display }})</li>{% endfor %}
+  </ul>
+  <p class="qkt-texto-2">Total: ${{ total }}</p>
+
+  <form method="post" class="qkt-botonera">
+    {% csrf_token %}
+    {% for obj in queryset %}<input type="hidden" name="{{ action_checkbox_name }}" value="{{ obj.pk }}">{% endfor %}
+    <input type="hidden" name="action" value="{{ action_name }}">
+    <input type="hidden" name="confirmar" value="si">
+    <div class="qkt-campo">
+      <label for="id_metodo">Cómo se pagó</label>
+      <select name="metodo" id="id_metodo" required>
+        <option value="">Elige…</option>
+        <option value="EFECTIVO">Efectivo (sale de Caja)</option>
+        <option value="TRANSFERENCIA">Transferencia (sale del banco)</option>
+      </select>
+    </div>
+    <div class="qkt-campo">
+      <label for="id_cuenta">Cuenta bancaria (transferencia)</label>
+      <select name="cuenta" id="id_cuenta">
+        <option value="">Cuenta pagadora</option>
+        {% for c in cuentas %}<option value="{{ c.pk }}">{{ c }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="qkt-campo">
+      <label for="id_referencia">Referencia</label>
+      <input type="text" name="referencia" id="id_referencia" maxlength="100">
+    </div>
+    <button type="submit" class="qkt-btn qkt-btn--primario">Marcar pagado</button>
+    <a href="{% url opts|admin_urlname:'changelist' %}" class="qkt-btn qkt-btn--secundario">Cancelar</a>
+  </form>
+</div>
+{% endblock %}

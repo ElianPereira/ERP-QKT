@@ -37,6 +37,8 @@ PLANTILLAS_MIGRADAS = sorted(
         _BASE / 'comercial' / 'templates' / 'contratos' / 'contrato_pdf.html',
         _BASE / 'comercial' / 'templates' / 'contratos' / 'contrato_hospedaje_pdf.html',
         _BASE / 'comercial' / 'templates' / 'contratos' / 'constancia_firma.html',
+        # Ventas: estado de comisiones (Issue #505).
+        _BASE / 'ventas' / 'templates' / 'ventas' / 'estado_comisiones.html',
         # Indicadores del mes (Issue #402).
         _BASE / 'indicadores' / 'templates' / 'indicadores' / 'pdf_indicadores.html',
         # Cumplimiento (Issue #403).

@@ -316,6 +316,7 @@ class Poliza(models.Model):
         ('BANCO', 'Movimiento bancario (regla de conciliación)'),
         ('AJUSTE', 'Ajuste contable'),
         ('APERTURA', 'Saldo de apertura'),
+        ('COMISION_VENTAS', 'Comisiones y pagos a ventas'),
     ]
 
     tipo = models.CharField(
@@ -840,6 +841,7 @@ class ConfiguracionContable(models.Model):
         ('NO_DEDUCIBLE_VENTA', 'No deducible - Gastos de venta'),
         ('NO_DEDUCIBLE_FINANCIERO', 'No deducible - Gastos financieros'),
         ('NO_DEDUCIBLE_OTROS', 'No deducible - Otros gastos'),
+        ('COMISIONES_VENTA', 'No deducible - Comisiones y pagos a ventas'),
 
         # ═══════════════════════════════════════════
         # NÓMINA

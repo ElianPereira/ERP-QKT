@@ -342,6 +342,30 @@ class PaginasMovilTest(MovilBase):
                 problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
         self.assertEqual(problemas, [], 'Pantallas de ventas desbordan en móvil:\n' + '\n'.join(problemas))
 
+    def test_pantallas_de_cortes_y_entregas_no_desbordan(self):
+        """Cortes de comisiones (los revisa Dirección desde el celular), su pantalla de pago, entregas y comisiones."""
+        from decimal import Decimal
+
+        from nomina.models import Empleado
+        from ventas.models import CorteComision, MovimientoComision
+        ana = Empleado.objects.create(nombre='Ana Cortes Móvil', puesto='VENTAS')
+        MovimientoComision.objects.create(vendedor=ana, tipo='CONTRATACION', monto=Decimal('500.00'),
+                                          fecha=date.today(), clave_idempotencia='movil:1')
+        corte = CorteComision.objects.create(vendedor=ana, tipo='COMISIONES', desde=date.today(), hasta=date.today(),
+                                             bruto=Decimal('500.00'), total=Decimal('500.00'), estado='APROBADO')
+        problemas = []
+        for ruta in (reverse('admin:ventas_cortecomision_changelist'),
+                     reverse('admin:ventas_cortecomision_change', args=[corte.pk]),
+                     reverse('admin:ventas_movimientocomision_changelist'),
+                     reverse('admin:ventas_comisioncontratacion_changelist'),
+                     reverse('admin:ventas_entregaefectivo_changelist'),
+                     reverse('admin:ventas_entregaefectivo_add')):
+            res = self.barrer(ruta)
+            culpables = self.page.evaluate(JS_CULPABLES) if ('/change/' in ruta or '/add/' in ruta) else []
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        self.assertEqual(problemas, [], 'Cortes/Entregas desbordan en móvil:\n' + '\n'.join(problemas))
+
     def test_bandeja_de_pendientes_no_desborda(self):
         from django.utils import timezone
 

@@ -675,6 +675,14 @@ JAZZMIN_SETTINGS = {
         "nomina.DocumentoEmpleado":         "fas fa-folder-open",
         "nomina.CondicionesPago":           "fas fa-handshake",
 
+        # VENTAS
+        "ventas":                           "fas fa-hand-holding-usd",
+        "ventas.ComisionContratacion":      "fas fa-percentage",
+        "ventas.MovimientoComision":        "fas fa-exchange-alt",
+        "ventas.CorteComision":             "fas fa-cut",
+        "ventas.EventoVenta":               "fas fa-stream",
+        "ventas.EntregaEfectivo":           "fas fa-hand-holding",
+
         # FACTURACIÓN
         "facturacion":                      "fas fa-stamp",
         "facturacion.ClienteFiscal":        "fas fa-id-card",
@@ -836,6 +844,14 @@ JAZZMIN_SETTINGS = {
         "nomina.AprobacionNomina",
         "nomina.DocumentoEmpleado",
         "nomina.CondicionesPago",
+
+        # === VENTAS ===
+        "ventas",
+        "ventas.ComisionContratacion",
+        "ventas.MovimientoComision",
+        "ventas.CorteComision",
+        "ventas.EventoVenta",
+        "ventas.EntregaEfectivo",
 
         # === FACTURACIÓN ===
         "facturacion",

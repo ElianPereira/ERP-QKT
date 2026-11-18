@@ -54,6 +54,7 @@ ARCHIVOS_PROTEGIDOS = {
     ('cumplimiento', 'vigencia', 'documento'),
     ('cumplimiento', 'documentoexpediente', 'archivo'),
     ('nomina', 'documentoempleado', 'archivo'),
+    ('ventas', 'cortecomision', 'archivo_pdf'),
 }
 
 # Archivos que, además del permiso `view` del modelo, exigen un permiso propio.
