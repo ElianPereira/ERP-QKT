@@ -33,7 +33,7 @@ Un cobro es el dinero que el cliente entrega por su reservación. Se registra **
 
 6. En **Referencia** escribe el dato que sirva para encontrarlo después: la clave de rastreo de la transferencia, o los últimos dígitos de la autorización de la terminal. En efectivo puede quedar vacía.
 7. Deja **Cuenta bancaria** vacía. El sistema usa la cuenta principal, y si el banco muestra otra, se corrige al cargar el estado de cuenta.
-8. Si el cliente pidió factura, pasa a la pestaña **Facturación** y marca **¿Solicitar factura?**, solo si ya diste los datos fiscales del cliente.
+8. No marques nada para la factura: **cada pago genera solo su solicitud de factura** para el contador. Si el cliente ya tiene sus datos fiscales completos en su ficha, la factura sale a su nombre; si no, sale a *Público en general*. Por eso conviene capturar los datos fiscales **antes** de registrar el pago (ver *Datos fiscales del cliente*).
 9. Toca **Guardar**.
 
     ![Formulario para registrar un pago](img/cobro-formulario.webp)

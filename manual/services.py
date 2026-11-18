@@ -227,6 +227,7 @@ def contexto_negocio() -> dict:
         'dias_expiracion_sin_pago': Cotizacion.DIAS_EXPIRACION_SIN_PAGO,
         'deposito_evento_pct': _sin_ceros(reglas_contrato.PORCENTAJE_DEPOSITO_EVENTO * 100),
         'deposito_por_habitacion': f'{reglas_contrato.DEPOSITO_POR_HABITACION:,.2f}',
+        'deposito_inspeccion_horas': settings.ERP_DEPOSITO_INSPECCION_HORAS,
         'dias_devolucion_deposito': reglas_contrato.DIAS_DEVOLUCION_DEPOSITO,
         'horarios_visita': horarios_visita,
         'sesion_minutos': settings.ERP_SESION_INACTIVIDAD_SEGUNDOS // 60,
