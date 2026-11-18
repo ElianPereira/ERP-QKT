@@ -2,7 +2,7 @@
 titulo: Registrar un cobro
 capitulo: Cobros
 orden: 600
-roles: [ENCARGADO, DIRECCION]
+roles: [VENTAS, ENCARGADO, DIRECCION]
 ---
 Un cobro es el dinero que el cliente entrega por su reservación. Se registra **una sola vez**, en cuanto llega, y siempre contra una cotización. El sistema calcula solo el saldo, avisa si algo no cuadra y, cuando el cliente ya pagó lo suficiente, aparta la fecha.
 
@@ -33,13 +33,19 @@ Un cobro es el dinero que el cliente entrega por su reservación. Se registra **
 
 6. En **Referencia** escribe el dato que sirva para encontrarlo después: la clave de rastreo de la transferencia, o los últimos dígitos de la autorización de la terminal. En efectivo puede quedar vacía.
 7. Deja **Cuenta bancaria** vacía. El sistema usa la cuenta principal, y si el banco muestra otra, se corrige al cargar el estado de cuenta.
-8. Si el cliente pidió factura, pasa a la pestaña **Facturación** y marca **¿Solicitar factura?**, solo si ya diste los datos fiscales del cliente.
+8. No marques nada para la factura: **cada pago genera solo su solicitud de factura** para el contador. Si el cliente ya tiene sus datos fiscales completos en su ficha, la factura sale a su nombre; si no, sale a *Público en general*. Por eso conviene capturar los datos fiscales **antes** de registrar el pago (ver *Datos fiscales del cliente*).
 9. Toca **Guardar**.
 
     ![Formulario para registrar un pago](img/cobro-formulario.webp)
 
 :::correcto
 Después de guardar, la cotización muestra el pago y el saldo baja por el mismo monto. Si con este cobro el cliente ya cubrió el anticipo, la cotización pasa sola a **Confirmada** y la fecha queda apartada.
+:::
+
+:::rol VENTAS
+### Lo que no puedes registrar
+
+El sistema no te deja registrar **reembolsos** ni **condonaciones o cortesías**: son decisiones de la Dirección. Si un cliente pide que "se le perdone" una parte o se le devuelva algo, no lo captures; pásalo a la Dirección.
 :::
 
 ### Efectivo
