@@ -22,7 +22,7 @@ from typing import Dict, Optional
 from core_erp.impuestos import sin_iva
 
 from ..models import ParametrosNegocio
-from .base import ETIQUETAS, HABITACIONES, MIN_MUESTRA, TIPOS, dividir, porcentaje, q2
+from .base import D0, ETIQUETAS, HABITACIONES, MIN_MUESTRA, TIPOS, dividir, porcentaje, q2
 
 
 def referencia(p: ParametrosNegocio, tipo: str) -> Optional[dict]:
@@ -53,7 +53,7 @@ def economia_servicio(tipo: str, e: dict, p: ParametrosNegocio, overrides: Optio
     """
     `e` es la fila del histórico (`EconomiaUnitariaService.generar()['tipos'][tipo]`). Devuelve
     `ticket`, `costo`, `mc`, `mc_pct`, `mc_dia`, `dias_unidad`, `fuente_precio`, `fuente_costo`,
-    `folios` y `avisos`; con `ticket=None` el costo y el margen también van vacíos.
+    `folios`, `avisos` y `comision` (la parte del costo que es comisión de ventas); con `ticket=None` el costo y el margen también van vacíos.
     """
     overrides = overrides or {}
     nombre, avisos = ETIQUETAS[tipo], []
@@ -78,7 +78,7 @@ def economia_servicio(tipo: str, e: dict, p: ParametrosNegocio, overrides: Optio
     base = {'tipo': tipo, 'nombre': nombre, 'dias_unidad': dias_unidad, 'folios': e['folios'],
             'muestra': e['tipicas'], 'avisos': avisos}
     if ticket is None:
-        return {**base, 'ticket': None, 'costo': None, 'mc': None, 'mc_pct': None, 'mc_dia': None,
+        return {**base, 'ticket': None, 'costo': None, 'comision': None, 'mc': None, 'mc_pct': None, 'mc_dia': None,
                 'fuente_precio': None, 'fuente_costo': None}
 
     pct_sim = overrides.get(f'costo_pct_{tipo}')
@@ -92,11 +92,15 @@ def economia_servicio(tipo: str, e: dict, p: ParametrosNegocio, overrides: Optio
     else:
         costo, fuente_costo = q2(ticket * e['costo_pct']), e['fuente_costo']
 
+    # La comisión de ventas es costo variable (Issue #505); una simulación de % de costo es explícita y no la suma.
+    comision = D0 if pct_sim is not None else q2(ticket * Decimal(e.get('comision_pct') or 0))
+    costo += comision
+
     mc = ticket - costo
     if mc <= 0:
         avisos.append(f'{nombre}: el margen de contribución es {mc}: el costo directo iguala o rebasa al precio; '
                       'no entra al plan ni al equilibrio.')
-    return {**base, 'ticket': ticket, 'costo': costo, 'mc': mc, 'mc_pct': porcentaje(mc, ticket),
+    return {**base, 'ticket': ticket, 'costo': costo, 'comision': comision, 'mc': mc, 'mc_pct': porcentaje(mc, ticket),
             'mc_dia': dividir(mc, dias_unidad) if mc > 0 else None,
             'fuente_precio': fuente_precio, 'fuente_costo': fuente_costo}
 

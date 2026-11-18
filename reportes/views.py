@@ -88,6 +88,7 @@ def selector_reportes(request):
         'puede_cortesias': request.user.has_perm('comercial.view_descuentoaplicado'),
         'puede_compras': request.user.has_perm('comercial.view_compra'),
         'puede_nomina': request.user.has_perm('nomina.view_recibonomina'),
+        'puede_comisiones': request.user.has_perm('ventas.view_cortecomision'),
         'puede_kooxi': request.user.has_perm('comunicacion.view_conversacionwhatsapp'),
         'puede_indicadores': request.user.is_superuser,
         'puede_cumplimiento': request.user.has_perm('cumplimiento.view_vigencia'),
@@ -414,9 +415,9 @@ def reporte_rentabilidad(request):
         return respuesta_excel(datos['titulo'], [
             ('Eventos', ['Folio', 'Fecha', 'Cliente', 'Evento', 'Venta total', 'IVA trasladado',
                          'Ingreso sin IVA', 'Gasto facturado', 'IVA acreditable', 'Gasto sin factura',
-                         'Utilidad bruta'],
+                         'Comisión de ventas', 'Utilidad bruta'],
              [(e['folio'], e['fecha'], e['cliente'], e['evento'], e['venta'], e['iva'], e['base'],
-               e['gasto_fiscal'], e['iva_acreditable'], e['gasto_nofiscal'], e['utilidad'])
+               e['gasto_fiscal'], e['iva_acreditable'], e['gasto_nofiscal'], e['comision'], e['utilidad'])
               for e in datos['eventos']]),
             ('Gastos operativos', ['Categoría', 'Con factura', 'Base', 'IVA', 'Total'],
              [(g['nombre'], 'Sí', g['base'], g['iva'], g['base'] + g['iva']) for g in datos['operativos_fiscales']]
@@ -493,11 +494,42 @@ def reporte_nomina(request):
         ('Por empleado', ['Empleado', 'Puesto', 'Recibos', 'Horas', 'Total', 'Pagado', 'Pendiente'],
          [(e['nombre'], e['puesto'], e['recibos'], e['horas'], e['total'], e['pagado'], e['pendiente'])
           for e in datos['empleados']]),
+        ('Costo de personal', ['Concepto', 'Monto'],
+         [('Nómina del periodo', datos['total']),
+          ('Comisiones y pagos a ventas (devengado)', datos['ventas_devengado']),
+          ('Costo total de personal', datos['costo_total_personal'])]),
         ('Recibos', ['Folio', 'Empleado', 'Inicio', 'Periodo', 'Horas', 'Tarifa', 'Total', 'Estado',
                      'Fecha de pago'],
          [(f"NOM-{r.pk:03d}", r.empleado.nombre, inicio_del_recibo(r), r.periodo, r.horas_trabajadas,
            r.tarifa_aplicada, r.total_pagado, r.get_estado_display(), r.fecha_pago)
           for r in datos['recibos']]),
+    ])
+
+
+@staff_member_required
+@permission_required('ventas.view_cortecomision', raise_exception=True)
+@no_para_vendedor
+def reporte_comisiones(request):
+    """Comisiones por periodo (solo Dirección): actividad, devengado, pagado y por pagar de cada persona."""
+    from .services.operacion import ComisionesPeriodoService
+
+    datos = ComisionesPeriodoService.generar(*_periodo(request))
+    datos['titulo'] = 'Comisiones por periodo'
+    return _entregar(request, 'COMISIONES', 'Comisiones', 'reportes/pdf_comisiones.html', datos, lambda: [
+        ('Por persona', ['Persona', 'Visitas atendidas', 'Visitas pagadas', 'Sobre el tope', 'Cotizaciones',
+                         'Contrataciones', 'Venta sin IVA', 'Devengado visitas', 'Devengado comisiones',
+                         'Absorbido', 'Pagado', 'Por pagar', 'Saldo en contra', 'Efectivo por entregar'],
+         [(p['vendedor'].nombre, p['visitas']['atendidas'], p['visitas']['pagadas'], p['visitas']['sobre_tope'],
+           p['cotizaciones'], p['contrataciones'], p['venta_sin_iva'], p['visitas_devengado'],
+           p['comisiones_devengado'], p['absorbido'], p['pagado'], p['por_pagar'], p['saldo_en_contra'],
+           p['efectivo_por_entregar']) for p in datos['personas']]),
+        ('Contrataciones', ['Persona', 'Folio', 'Cliente', 'Servicio', 'Confirmada', 'N.º del año',
+                            'Venta sin IVA', 'Comisión', 'Devengado', 'Por devengar', 'Estado'],
+         [(f['persona'], f['folio'], f['cliente'], f['servicio'], f['confirmada'], f['numero'],
+           f['venta_sin_iva'], f['total'], f['devengado'], f['por_devengar'], f['estado'])
+          for f in datos['contrataciones']]),
+        ('Movimientos', ['Fecha', 'Persona', 'Tipo', 'Detalle', 'Monto'],
+         [(m.fecha, m.vendedor.nombre, m.get_tipo_display(), m.detalle, m.monto) for m in datos['movimientos']]),
     ])
 
 

@@ -35,6 +35,7 @@ class ReporteGenerado(models.Model):
         ('CUMPLIMIENTO', 'Costo de Cumplimiento'),
         # Nómina
         ('NOMINA', 'Nómina por Periodo'),
+        ('COMISIONES', 'Comisiones por Periodo'),
         # Facturación
         ('FACTURAS', 'Facturas Emitidas'),
     ]

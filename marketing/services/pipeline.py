@@ -168,6 +168,10 @@ def etapa_derivada(lead, cots=None, visitas=None) -> str:
 def fuente_de(telefono='', cliente=None, conv=None, cotizacion=None, primer_contacto=None, excluir=None) -> dict:
     """Devuelve {'fuente', 'anuncio_id', 'anuncio_titulo', 'anuncio_clid'}."""
     primer_contacto = primer_contacto or timezone.now()
+    # Un cliente que registró la vendedora tiene fuente propia (Issue #505): no se acredita a un anuncio
+    # ni cuenta como orgánico de WhatsApp.
+    if cliente is not None and _sin_acentos(cliente.origen) == 'vendedor':
+        return {'fuente': 'VENDEDOR'}
     if conv is not None and (conv.anuncio_id or conv.anuncio_url) \
             and conv.created_at >= primer_contacto - timedelta(days=DIAS_ANUNCIO):
         return {'fuente': 'META_ANUNCIO', 'anuncio_id': conv.anuncio_id,

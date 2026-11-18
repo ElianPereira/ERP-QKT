@@ -14,12 +14,15 @@ Definiciones:
 - **Costo variable** = gasto ligado a la cotización (`gasto_set`), con el mismo criterio base/IVA
   que `RentabilidadEventosService`. Con menos de `MIN_MUESTRA` ventas típicas con gasto ligado
   en el tipo, el % de costo es el de respaldo de `ParametrosNegocio` y se marca «estimado».
+- **Comisión de ventas** (`comision_pct`): comisión sellada de las ventas típicas ÷ su venta neta. No está en
+  el gasto ligado, así que `servicio.economia_servicio` la suma aparte al costo variable.
 """
 from datetime import date
 from decimal import Decimal
 from typing import Dict, Optional
 
 from reportes.services.comercial import _prorratear_iva
+from ventas.models import ComisionContratacion
 
 from ..models import ParametrosNegocio
 from .base import (
@@ -77,9 +80,12 @@ class EconomiaUnitariaService:
         """
         p = parametros or ParametrosNegocio.vigente()
         acc = {t: dict(ventas=0, venta=D0, dias=0, noches=0, noches_hab=0, personas=0,
-                       tipicas=0, venta_tipica=D0, noches_hab_tipicas=0, folios=[],
+                       tipicas=0, venta_tipica=D0, noches_hab_tipicas=0, folios=[], comision_tipicas=D0,
                        con_gasto=0, venta_con_gasto=D0, costo_con_gasto=D0) for t in TIPOS}
         otros_venta = D0
+        # Comisión de ventas sellada por cotización (Issue #505): entra al costo variable del servicio.
+        comisiones = dict(ComisionContratacion.objects.filter(
+            cotizacion__in=ventas_reales(desde, hasta)).values_list('cotizacion_id', 'total'))
         cotizaciones = ventas_reales(desde, hasta).select_related('cliente').prefetch_related(
             'gasto_set__compra', 'items__producto', 'descuentos_aplicados__descuento')
         for cot in cotizaciones:
@@ -104,6 +110,7 @@ class EconomiaUnitariaService:
                 continue
             a['tipicas'] += 1
             a['venta_tipica'] += neta
+            a['comision_tipicas'] += comisiones.get(cot.pk, D0)
             a['noches_hab_tipicas'] += noches_hab
             a['folios'].append(folio(cot))
             if cot.gasto_set.all():
@@ -141,6 +148,7 @@ class EconomiaUnitariaService:
             'tipicas': a['tipicas'], 'ticket': dividir(a['venta_tipica'], a['tipicas']),
             'ticket_unidad': dividir(a['venta_tipica'], unidades_tipicas), 'folios': a['folios'],
             'costo_pct': pct, 'fuente_costo': fuente, 'muestra': a['con_gasto'],
+            'comision_pct': q4(a['comision_tipicas'] / a['venta_tipica']) if a['venta_tipica'] > 0 else D0,
         }
 
     @staticmethod

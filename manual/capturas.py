@@ -59,6 +59,7 @@ CAPTURAS = [
     Captura('cobro-formulario', '/admin/comercial/pago/add/', 'ENCARGADO', alto=900,
             resaltar='#id_monto', preparar=_llenar_pago),
     Captura('estado-correos', '/admin/contabilidad/correoestadocuenta/', 'DIRECCION'),
+    Captura('mis-comisiones', '/admin/ventas/mis-comisiones/', 'VENTAS', ancho=CELULAR, alto=900),
     Captura('estado-lista', '/admin/contabilidad/estadocuentabancario/', 'CONTADOR',
             resaltar='select[name=action]', preparar=_elegir_primer_estado),
 ]

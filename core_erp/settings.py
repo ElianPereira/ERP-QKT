@@ -780,6 +780,8 @@ JAZZMIN_SETTINGS = {
         {"name": "Cartera",            "url": "cartera_cxc"},
         {"name": "Reportes",           "url": "reportes:selector"},
         {"name": "Indicadores",        "url": "indicadores:tablero",     "permissions": ["indicadores.view_metamensual"]},
+        {"name": "Ventas",             "url": "ventas:tablero",          "permissions": ["ventas.view_cortecomision"]},
+        {"name": "Mis comisiones",     "url": "ventas:mis_comisiones",   "permissions": ["ventas.ver_mis_comisiones"]},
         {"name": "Manual",             "url": "manual:indice"},
         {"name": "Cerrar sesión",      "url": "/admin/logout/",          "new_window": False},
     ],
@@ -942,6 +944,12 @@ JAZZMIN_SETTINGS = {
             {"name": "Plan del año", "url": "indicadores:plan", "icon": "fas fa-th-large",
              "permissions": ["indicadores.view_metamensual"]},
         ],
+        "ventas": [{
+            "name": "Tablero",
+            "url": "ventas:tablero",
+            "icon": "fas fa-chart-bar",
+            "permissions": ["ventas.view_cortecomision"],
+        }],
         "manual": [{
             "name": "Manual",
             "url": "manual:indice",

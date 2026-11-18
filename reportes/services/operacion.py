@@ -67,12 +67,37 @@ class NominaPeriodoService:
                 pagado += r.total_pagado
         for fila in empleados.values():
             fila['pendiente'] = fila['total'] - fila['pagado']
+        # Comisiones y pagos a ventas (Issue #505): renglón aparte, no son recibos de nómina.
+        from ventas import services_tablero
+
+        ventas_devengado = services_tablero.costo_de_ventas(fecha_inicio, fecha_fin)
         return {
             'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin,
             'recibos': recibos,
             'empleados': sorted(empleados.values(), key=lambda f: f['nombre']),
             'horas': horas, 'total': total, 'pagado': pagado, 'pendiente': total - pagado,
+            'ventas_devengado': ventas_devengado, 'costo_total_personal': total + ventas_devengado,
         }
+
+
+# ==========================================
+# COMISIONES POR PERIODO (Issue #505)
+# ==========================================
+
+class ComisionesPeriodoService:
+    """Actividad y costo de la fuerza de ventas, leído de `ventas.services_tablero` (nada se recalcula aquí)."""
+
+    @classmethod
+    def generar(cls, fecha_inicio: date, fecha_fin: date) -> Dict:
+        from ventas import services_tablero
+        from ventas.models import MovimientoComision
+
+        datos = services_tablero.tablero(fecha_inicio, fecha_fin)
+        contrataciones = [{**f, 'persona': p['vendedor'].nombre} for p in datos['personas'] for f in p['filas']]
+        movimientos = list(MovimientoComision.objects.filter(fecha__gte=fecha_inicio, fecha__lte=fecha_fin)
+                           .select_related('vendedor').order_by('vendedor__nombre', 'fecha', 'id'))
+        return {'fecha_inicio': fecha_inicio, 'fecha_fin': fecha_fin, 'personas': datos['personas'],
+                'totales': datos['totales'], 'contrataciones': contrataciones, 'movimientos': movimientos}
 
 
 # ==========================================

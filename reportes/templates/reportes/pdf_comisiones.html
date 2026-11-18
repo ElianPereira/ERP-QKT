@@ -1,0 +1,70 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos %}
+
+{% block orientacion %}landscape{% endblock %}
+{% block subtitulo %}Actividad, devengado y pagos del personal de ventas{% endblock %}
+
+{% block filtros %}
+<span><b>Periodo:</b> {{ fecha_inicio|date:"d/m/Y" }} al {{ fecha_fin|date:"d/m/Y" }}</span>
+{% endblock %}
+
+{% block contenido %}
+<div class="doc-kpis">
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ totales.contrataciones }}</div><div class="doc-kpi-etiqueta">Contrataciones</div></div>
+  <div class="doc-kpi doc-kpi--info"><div class="doc-kpi-valor">{{ totales.venta_sin_iva|moneda }}</div><div class="doc-kpi-etiqueta">Venta sin IVA</div></div>
+  <div class="doc-kpi doc-kpi--alerta"><div class="doc-kpi-valor">{{ totales.costo_de_ventas|moneda }}</div><div class="doc-kpi-etiqueta">Costo de ventas devengado</div></div>
+  <div class="doc-kpi doc-kpi--exito"><div class="doc-kpi-valor">{{ totales.pagado|moneda }}</div><div class="doc-kpi-etiqueta">Pagado</div></div>
+  <div class="doc-kpi"><div class="doc-kpi-valor">{{ totales.por_pagar|moneda }}</div><div class="doc-kpi-etiqueta">Por pagar</div></div>
+</div>
+
+<h2 class="doc-seccion">Por persona</h2>
+<table class="doc-tabla">
+  <thead>
+    <tr><th>Persona</th><th class="num col-corta">Visitas atendidas</th><th class="num col-corta">Sobre el tope</th>
+      <th class="num col-corta">Cotizaciones</th><th class="num col-corta">Contrataciones</th>
+      <th class="num col-monto">Venta sin IVA</th><th class="num col-monto">Devengado</th><th class="num col-monto">Pagado</th>
+      <th class="num col-monto">Por pagar</th><th class="num col-monto">Saldo en contra</th><th class="num col-monto">Efectivo por entregar</th></tr>
+  </thead>
+  <tbody>
+    {% for p in personas %}
+    <tr>
+      <td class="negrita">{{ p.vendedor.nombre }}</td><td class="num">{{ p.visitas.atendidas }}</td><td class="num">{{ p.visitas.sobre_tope }}</td>
+      <td class="num">{{ p.cotizaciones }}</td><td class="num">{{ p.contrataciones }}</td>
+      <td class="num">{{ p.venta_sin_iva|moneda }}</td><td class="num">{{ p.devengado|moneda }}</td><td class="num">{{ p.pagado|moneda }}</td>
+      <td class="num">{{ p.por_pagar|moneda }}</td><td class="num">{{ p.saldo_en_contra|moneda }}</td><td class="num">{{ p.efectivo_por_entregar|moneda }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="11" class="vacio">Sin personal de ventas en el periodo.</td></tr>
+    {% endfor %}
+    {% if personas %}
+    <tr class="total">
+      <td>Total</td><td class="num">{{ totales.visitas_atendidas }}</td><td class="num">{{ totales.visitas_sobre_tope }}</td>
+      <td class="num">{{ totales.cotizaciones }}</td><td class="num">{{ totales.contrataciones }}</td>
+      <td class="num">{{ totales.venta_sin_iva|moneda }}</td><td class="num">{{ totales.devengado|moneda }}</td><td class="num">{{ totales.pagado|moneda }}</td>
+      <td class="num">{{ totales.por_pagar|moneda }}</td><td class="num">{{ totales.saldo_en_contra|moneda }}</td><td class="num">{{ totales.efectivo_por_entregar|moneda }}</td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+
+{% if contrataciones %}
+<h2 class="doc-seccion">Contrataciones</h2>
+<table class="doc-tabla">
+  <thead>
+    <tr><th>Persona</th><th class="col-folio">Folio</th><th>Cliente</th><th class="centro col-fecha">Confirmada</th><th class="num col-corta">N.º</th>
+      <th class="num col-monto">Venta sin IVA</th><th class="num col-monto">Comisión</th><th class="num col-monto">Devengado</th><th class="num col-monto">Por devengar</th></tr>
+  </thead>
+  <tbody>
+    {% for f in contrataciones %}
+    <tr>
+      <td>{{ f.persona }}</td><td class="codigo">{{ f.folio }}</td><td>{{ f.cliente|truncatechars:30 }}</td>
+      <td class="centro">{{ f.confirmada|date:"d/m/Y" }}</td><td class="num">{{ f.numero }}</td>
+      <td class="num">{{ f.venta_sin_iva|moneda }}</td><td class="num">{{ f.total|moneda }}</td><td class="num">{{ f.devengado|moneda }}</td><td class="num">{{ f.por_devengar|moneda }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
+
+{% block notas %}Montos sin IVA. Devengado = lo ganado en el periodo, neto de reversos; pagado = cortes pagados en el periodo; por pagar y saldo en contra son al día de hoy. Gasto no deducible. El efectivo por entregar son cobros de clientes y nunca se compensa con comisiones.{% endblock %}

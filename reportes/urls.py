@@ -31,6 +31,7 @@ urlpatterns = [
 
     # Fase 5 (Issue #373)
     path('nomina/', views.reporte_nomina, name='nomina'),
+    path('comisiones/', views.reporte_comisiones, name='comisiones'),
     path('gastos/', views.reporte_gastos, name='gastos'),
     path('flujo/', views.reporte_flujo, name='flujo'),
     path('ocupacion/', views.reporte_ocupacion, name='ocupacion'),

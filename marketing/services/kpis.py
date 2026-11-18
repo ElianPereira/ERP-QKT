@@ -40,6 +40,7 @@ from indicadores.models import ParametrosNegocio
 from indicadores.services.base import D0, ESTANCIA_DEFAULT, ETIQUETAS, TIPOS, dividir, q2, venta_neta, ventana_promedio
 from indicadores.services.servicio import economia_servicio
 from indicadores.services.unitarios import EconomiaUnitariaService
+from ventas.services_tablero import costo_de_ventas
 
 from ..models import Anuncio, Campana, GastoPublicitario, Lead, ParametroMarketing
 
@@ -114,7 +115,7 @@ def calcular(desde: date, hasta: date, *, parametros: Optional[ParametroMarketin
     for lead in leads:
         cot = lead.cotizacion
         ganado = lead.etapa == Lead.GANADO and cot is not None
-        campana_id = campana_de.get(lead.anuncio_id) if lead.anuncio_id else None
+        campana_id = campana_de.get(lead.anuncio_id) if lead.anuncio_id and lead.fuente != 'VENDEDOR' else None
         filas.append({
             'fuente': lead.fuente, 'campana_id': campana_id, 'cotizado': cot is not None, 'ganado': ganado,
             'contratado': venta_neta(cot) if ganado else D0,
@@ -158,7 +159,9 @@ def calcular(desde: date, hasta: date, *, parametros: Optional[ParametroMarketin
 
     total = _grupo('Total', filas, sum(gasto_por_campana.values(), D0), minimo)
     return {'desde': desde, 'hasta': hasta, 'total': total, 'por_servicio': por_servicio,
-            'por_campana': list(por_campana.values()), 'por_plataforma': por_plataforma, 'minimo': minimo}
+            'por_campana': list(por_campana.values()), 'por_plataforma': por_plataforma, 'minimo': minimo,
+            # Costo de la fuerza de ventas junto al gasto de pauta (Issue #505); no entra al CAC de la pauta.
+            'costo_ventas': costo_de_ventas(desde, hasta)}
 
 
 def topes_cac(hoy: Optional[date] = None, parametros: Optional[ParametroMarketing] = None) -> Dict[str, dict]:

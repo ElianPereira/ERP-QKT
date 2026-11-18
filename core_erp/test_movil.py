@@ -366,6 +366,25 @@ class PaginasMovilTest(MovilBase):
                 problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
         self.assertEqual(problemas, [], 'Cortes/Entregas desbordan en móvil:\n' + '\n'.join(problemas))
 
+    def test_tablero_y_mis_comisiones_no_desbordan(self):
+        """Tablero «Ventas» (Dirección) y «Mis comisiones» (ella trabaja desde el celular), con datos reales."""
+        from decimal import Decimal
+
+        from nomina.models import Empleado
+        from ventas.models import MovimientoComision
+        usuario = get_user_model().objects.get(username='movil')
+        ana = Empleado.objects.create(nombre='Ana Tablero Móvil con un nombre largo', puesto='VENTAS')
+        Empleado.objects.filter(pk=ana.pk).update(usuario=usuario)
+        MovimientoComision.objects.create(vendedor=ana, tipo='CONTRATACION', monto=Decimal('500.00'),
+                                          fecha=date.today(), clave_idempotencia='movil:tablero')
+        problemas = []
+        for ruta in (reverse('ventas:tablero'), reverse('ventas:mis_comisiones')):
+            res = self.barrer(ruta)
+            culpables = self.page.evaluate(JS_CULPABLES)
+            if res['desborde_pagina'] > 0 or culpables:
+                problemas.append(f"{ruta}: +{res['desborde_pagina']}px {culpables}")
+        self.assertEqual(problemas, [], 'Tablero/Mis comisiones desbordan en móvil:\n' + '\n'.join(problemas))
+
     def test_bandeja_de_pendientes_no_desborda(self):
         from django.utils import timezone
 

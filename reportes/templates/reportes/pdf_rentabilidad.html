@@ -30,6 +30,7 @@
       <th class="num col-monto">Gasto facturado</th>
       <th class="num col-monto">IVA acreditable</th>
       <th class="num col-monto">Gasto sin factura</th>
+      <th class="num col-monto">Comisión de ventas</th>
       <th class="num col-monto">Utilidad bruta</th>
     </tr>
   </thead>
@@ -45,10 +46,11 @@
       <td class="num">{{ e.gasto_fiscal|moneda }}</td>
       <td class="num">{{ e.iva_acreditable|moneda }}</td>
       <td class="num">{{ e.gasto_nofiscal|moneda }}</td>
+      <td class="num">{{ e.comision|moneda }}</td>
       <td class="num negrita texto-{{ e.utilidad|tono_signo }}">{{ e.utilidad|moneda }}</td>
     </tr>
     {% empty %}
-    <tr><td colspan="10" class="vacio">Sin eventos en el periodo.</td></tr>
+    <tr><td colspan="11" class="vacio">Sin eventos en el periodo.</td></tr>
     {% endfor %}
     {% if eventos %}
     <tr class="total">
@@ -59,6 +61,7 @@
       <td class="num">{{ totales.gasto_fiscal|moneda }}</td>
       <td class="num">{{ totales.iva_acreditable|moneda }}</td>
       <td class="num">{{ totales.gasto_nofiscal|moneda }}</td>
+      <td class="num">{{ totales.comision|moneda }}</td>
       <td class="num">{{ totales.utilidad|moneda }}</td>
     </tr>
     {% endif %}
@@ -104,6 +107,10 @@
         <tr><td>(−) Costos con factura</td><td class="num">{{ costos_deducibles|moneda }}</td></tr>
         <tr><td>(−) Costos sin factura</td><td class="num">{{ costos_no_deducibles|moneda }}</td></tr>
         <tr class="total"><td>Utilidad neta</td><td class="num">{{ utilidad_neta|moneda }}</td></tr>
+        {% if totales.comision %}
+        <tr><td>(−) Comisiones de ventas devengadas</td><td class="num">{{ totales.comision|moneda }}</td></tr>
+        <tr class="total"><td>Utilidad tras comisiones</td><td class="num">{{ utilidad_tras_comisiones|moneda }}</td></tr>
+        {% endif %}
       </tbody>
     </table>
   </div>
