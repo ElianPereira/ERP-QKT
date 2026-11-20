@@ -87,7 +87,7 @@ jobs:
 
       - name: Review with Claude
         id: review
-        uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1
+        uses: anthropics/claude-code-action@cc98b3ae241b0fcfb6a42a2690751afffecb4452 # v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           github_token: ${{ steps.identity-token.outputs.token }}
@@ -167,7 +167,7 @@ jobs:
           fromJSON(steps.review.outputs.structured_output || '{}').approved != true &&
           steps.rounds.outputs.can_fix == 'true'
         id: fix
-        uses: openai/codex-action@bdf19a4a223ec2549a3e2274a0cf61556bc07675 # v1
+        uses: openai/codex-action@306c6a196a99dcc6582530c396a19d2672d5e9ec # v1
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
           permission-profile: ":workspace"
