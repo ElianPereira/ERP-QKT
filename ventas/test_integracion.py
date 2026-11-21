@@ -147,3 +147,46 @@ class ResumenDelLunesTest(TestCase):
         self.assertIn('Ventas de la semana: 2 visita(s)', aviso.texto())
         sin = texto_resumen(timezone.localdate(), mes, D('0'), 0, [])
         self.assertNotIn('Ventas de la semana', sin.texto())
+
+
+class ListasAdminSinNMas1Test(TestCase):
+    """Las listas «Movimientos» y «Comisiones» no hacen una consulta extra por fila (Rutina Técnica 2026-11-21)."""
+
+    def setUp(self):
+        from comunicacion.models import Visita
+        from ventas import services_cortes as cortes
+        from ventas.models import MovimientoComision
+
+        self.Visita, self.Movimiento = Visita, MovimientoComision
+        self.ana = vendedora()
+        su = User.objects.create_superuser('dir_listas', 'd@x.mx', CLAVE)
+        login_superuser_con_totp(self.client, su)
+        mov(self.ana, '1.00', date(2026, 11, 3))
+        self.corte = cortes.crear_corte(self.ana, 'COMISIONES', date(2026, 11, 1), date(2026, 11, 15))
+
+    def _agregar(self, n):
+        for _ in range(n):
+            cot = venta(self.ana, estado='COTIZADA')
+            c = comision_sellada(cot, self.ana, Decimal('350.00'))
+            v = self.Visita.objects.create(nombre='x', telefono='9990000000', estado='CONFIRMADA', vendedor=self.ana,
+                                           inicio=timezone.now() + timedelta(days=self.Visita.objects.count() + 1))
+            m = mov(self.ana, '10.00', date(2026, 11, 3), comision=c, visita=v)
+            self.Movimiento.objects.filter(pk=m.pk).update(corte=self.corte)
+
+    def _consultas(self, url):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as q:
+            self.assertEqual(self.client.get(url).status_code, 200)
+        return len(q)
+
+    def test_consultas_constantes_al_crecer_la_lista(self):
+        for nombre in ('movimientocomision', 'comisioncontratacion'):
+            with self.subTest(nombre):
+                url = reverse(f'admin:ventas_{nombre}_changelist')
+                self._agregar(2)
+                base = self._consultas(url)
+                self._agregar(10)
+                with self.assertNumQueries(base):
+                    self.client.get(url)
