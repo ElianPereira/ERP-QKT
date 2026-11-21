@@ -34,6 +34,7 @@ class SoloLectura(admin.ModelAdmin):
 class ComisionContratacionAdmin(SoloLectura):
     list_display = ('cotizacion', 'vendedor', 'numero_en_periodo', 'anio', 'total_display', 'devengado_display',
                     'confirmada_en')
+    list_select_related = ('cotizacion__cliente', 'vendedor')
     list_filter = ('vendedor', 'anio')
     search_fields = ('cotizacion__id', 'vendedor__nombre')
 
@@ -49,6 +50,7 @@ class ComisionContratacionAdmin(SoloLectura):
 @admin.register(MovimientoComision)
 class MovimientoComisionAdmin(SoloLectura):
     list_display = ('fecha', 'vendedor', 'tipo', 'monto_display', 'comision', 'visita', 'corte', 'detalle')
+    list_select_related = ('vendedor', 'comision__vendedor', 'visita', 'corte__vendedor')
     list_filter = ('vendedor', 'tipo', 'fecha')
     search_fields = ('detalle', 'clave_idempotencia')
 
