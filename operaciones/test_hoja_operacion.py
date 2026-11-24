@@ -2,7 +2,8 @@
 from datetime import date, time, timedelta
 from decimal import Decimal
 
-from django.contrib.auth.models import User
+from django.contrib.auth.models import Group, Permission, User
+from django.contrib.messages import get_messages
 from django.db import connection
 from django.template.loader import render_to_string
 from django.test import TestCase
@@ -22,6 +23,7 @@ from comercial.models import (
     Producto,
 )
 from core_erp.documentos import contexto_documento
+from core_erp.test_utils import login_superuser_con_totp
 from nomina.models import Empleado
 
 from .models import ItemChecklist, PlantillaChecklist, TareaProgramada
@@ -301,3 +303,116 @@ class PdfHojaTest(TestCase):
 
     def test_tope_de_hojas_definido(self):
         self.assertEqual(MAX_HOJAS, 15)
+
+
+class VistaHojaTest(TestCase):
+    def setUp(self):
+        self.cot = crear_cotizacion()
+        self.url = f'/admin/comercial/cotizacion/{self.cot.pk}/hoja-operacion/'
+        self.admin = User.objects.create_superuser('dir', 'dir@example.com', 'x-segura-123')
+
+    def _staff_con_permiso(self, nombre='enc'):
+        usuario = User.objects.create_user(nombre, f'{nombre}@example.com', 'x-segura-123', is_staff=True)
+        usuario.user_permissions.add(Permission.objects.get(codename='view_cotizacion'))
+        self.client.force_login(usuario)
+        return usuario
+
+    def test_anonimo_va_al_login(self):
+        respuesta = self.client.get(self.url)
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertIn('login', respuesta['Location'])
+
+    def test_staff_sin_permiso_recibe_403(self):
+        usuario = User.objects.create_user('sinperm', 's@example.com', 'x-segura-123', is_staff=True)
+        self.client.force_login(usuario)
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+
+    def test_vendedor_recibe_403(self):
+        usuario = self._staff_con_permiso('vende')
+        usuario.groups.add(Group.objects.create(name='Vendedor'))
+        self.assertEqual(self.client.get(self.url).status_code, 403)
+
+    def test_cancelada_o_inexistente_da_404(self):
+        login_superuser_con_totp(self.client, self.admin)
+        Cotizacion.objects.filter(pk=self.cot.pk).update(estado='CANCELADA')
+        self.assertEqual(self.client.get(self.url).status_code, 404)
+        self.assertEqual(self.client.get('/admin/comercial/cotizacion/999999/hoja-operacion/').status_code, 404)
+
+    def test_staff_con_permiso_recibe_pdf_en_linea(self):
+        self._staff_con_permiso()
+        respuesta = self.client.get(self.url)
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(respuesta['Content-Type'], 'application/pdf')
+        self.assertTrue(respuesta.content.startswith(b'%PDF'))
+        self.assertTrue(respuesta['Content-Disposition'].startswith('inline'))
+        self.assertIn(f'QKT_HojaOperacion_COT-{self.cot.pk:03d}.pdf', respuesta['Content-Disposition'])
+
+    def test_descargar_es_attachment(self):
+        login_superuser_con_totp(self.client, self.admin)
+        respuesta = self.client.get(self.url + '?descargar=1')
+        self.assertTrue(respuesta['Content-Disposition'].startswith('attachment'))
+
+    def test_boton_en_el_detalle_solo_si_operable_y_no_vendedor(self):
+        login_superuser_con_totp(self.client, self.admin)
+        detalle = f'/admin/comercial/cotizacion/{self.cot.pk}/change/'
+        self.assertContains(self.client.get(detalle), self.url)
+        Cotizacion.objects.filter(pk=self.cot.pk).update(estado='BORRADOR')
+        self.assertNotContains(self.client.get(detalle), self.url)
+
+
+class AccionHojaTest(TestCase):
+    URL = '/admin/comercial/cotizacion/'
+
+    def setUp(self):
+        self.admin = User.objects.create_superuser('dir', 'dir@example.com', 'x-segura-123')
+        login_superuser_con_totp(self.client, self.admin)
+
+    def _accion(self, cotizaciones):
+        return self.client.post(self.URL, {
+            'action': 'hoja_operacion_pdf', '_selected_action': [c.pk for c in cotizaciones]}, follow=True)
+
+    def _mensajes(self, respuesta):
+        return [str(m) for m in get_messages(respuesta.wsgi_request)]
+
+    def test_una_cotizacion(self):
+        cot = crear_cotizacion()
+        respuesta = self._accion([cot])
+        self.assertEqual(respuesta['Content-Type'], 'application/pdf')
+        self.assertIn(f'COT-{cot.pk:03d}', respuesta['Content-Disposition'])
+
+    def test_varias_en_un_solo_pdf_con_agenda(self):
+        a = crear_cotizacion(nombre='A')
+        b = crear_cotizacion(nombre='B', fecha=FECHA + timedelta(days=2))
+        respuesta = self._accion([a, b])
+        self.assertEqual(respuesta['Content-Type'], 'application/pdf')
+        self.assertIn('QKT_AgendaOperacion_20261127_20261129.pdf', respuesta['Content-Disposition'])
+
+    def test_mas_de_quince_no_genera(self):
+        cots = [crear_cotizacion(nombre=f'C{n}') for n in range(MAX_HOJAS + 1)]
+        respuesta = self._accion(cots)
+        self.assertNotEqual(respuesta['Content-Type'], 'application/pdf')
+        self.assertTrue(any('máximo 15' in m for m in self._mensajes(respuesta)))
+
+    def test_ninguna_operable_da_error(self):
+        cot = crear_cotizacion(estado='BORRADOR')
+        respuesta = self._accion([cot])
+        self.assertNotEqual(respuesta['Content-Type'], 'application/pdf')
+        self.assertTrue(any('Ninguna de las seleccionadas' in m for m in self._mensajes(respuesta)))
+
+    def test_mezcla_omite_con_aviso(self):
+        buena = crear_cotizacion(nombre='Buena')
+        mala = crear_cotizacion(nombre='Mala', estado='CANCELADA')
+        respuesta = self._accion([buena, mala])
+        self.assertEqual(respuesta['Content-Type'], 'application/pdf')
+        # Los mensajes quedan pendientes para la siguiente pantalla del admin.
+        siguiente = self.client.get(self.URL)
+        self.assertTrue(any(f'COT-{mala.pk:03d}' in str(m) for m in get_messages(siguiente.wsgi_request)))
+
+    def test_la_accion_no_aparece_para_vendedor(self):
+        usuario = User.objects.create_user('vende', 'v@example.com', 'x-segura-123', is_staff=True)
+        usuario.groups.add(Group.objects.create(name='Vendedor'))
+        usuario.user_permissions.add(Permission.objects.get(codename='view_cotizacion'))
+        self.client.force_login(usuario)
+        cot = crear_cotizacion()
+        respuesta = self._accion([cot])
+        self.assertNotEqual(respuesta['Content-Type'], 'application/pdf')
