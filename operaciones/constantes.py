@@ -37,3 +37,20 @@ def calcular_horario_turnover(hora_limite: time, duracion_estimada_horas) -> tup
 
     requiere_tiempo_extra = hora_entrada < HORA_ENTRADA_NORMAL or hora_limite > HORA_SALIDA_NORMAL
     return hora_entrada, requiere_tiempo_extra
+
+
+# ─────────── Hoja de operación del evento ───────────
+
+# Atención personal de la Quinta (NO el 9191, que contesta Kooxi).
+WHATSAPP_ATENCION_QUINTA = '999 445 7178'
+
+# Aforo máximo por tipo de servicio: Reglamento v1.4 §4. None = no aplica.
+AFORO_MAXIMO = {'EVENTO': 150, 'PASADIA': 30, 'ARRENDAMIENTO': None}
+
+# Cronograma del día, relativo a la hora de inicio (llegada, proveedores) o de fin (desmontaje).
+OFFSET_LLEGADA_EQUIPO = timedelta(hours=-3)
+OFFSET_LLEGADA_PROVEEDORES = timedelta(hours=-2)
+OFFSET_DESMONTAJE = timedelta(hours=1)
+
+# Por debajo de este saldo (pesos) la hoja dice «Pagado en su totalidad»: misma tolerancia de Pago.clean().
+TOLERANCIA_SALDO = 0.50

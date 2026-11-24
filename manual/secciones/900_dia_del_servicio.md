@@ -32,6 +32,22 @@ Si el cliente escribe "ya llegué" o "voy en camino" al WhatsApp, el encargado r
 Si llega alguien **sin cita ni reservación**, el aviso lo dice («Sin cita ni reservación») y, si ya había visitado antes, también. No lo dejes esperando.
 :::
 
+### Hoja de operación
+
+:::rol ENCARGADO, DIRECCION
+La **hoja de operación** es un PDF para imprimir y llevar el día del servicio. Se puede sacar de eventos, pasadías y arrendamientos **confirmados o ejecutados**; de un hospedaje, una cotización en borrador o una cancelada no.
+
+- **Una sola cotización:** abre la cotización (**Eventos → Cotizaciones**) y toca **Hoja de operación** arriba, junto a los demás botones.
+- **Varias a la vez:** en la lista de Cotizaciones marca las que quieras, elige la acción **Hoja de operación (PDF)** y toca **Ir**. Sale un solo PDF con una portada que ordena los eventos por día. El máximo es de **15 cotizaciones** por PDF; las que no se puedan imprimir se omiten y el sistema avisa cuáles.
+
+Cada evento trae tres hojas:
+1. **Antes:** datos del evento y del cliente, servicios contratados (sin precios), barra con sus insumos, notas del cliente, si hay saldo por cobrar en el sitio, el depósito en garantía, si el contrato está firmado, si la identificación está revisada y el checklist de preparación con su hora de entrada.
+2. **Durante:** cronograma, reglas del servicio, conteo de aforo, control de barra y renglones para incidentes, con el WhatsApp de atención de la Quinta.
+3. **Después:** checklist de cierre, cobro final, depósito, daños y faltantes, y firmas.
+
+Las horas que falten en la cotización salen como renglón en blanco (____) para anotarlas a mano. Si el saldo es cero, la hoja dice «Pagado en su totalidad»; si no, dice cuánto cobrar antes de iniciar. El personal de ventas no puede generar esta hoja.
+:::
+
 ### Después: inspección
 
 Al día siguiente del servicio, el sistema le pide al encargado revisar la Quinta para decidir el depósito en garantía. Ver *Inspección y devolución del depósito*.

@@ -1,0 +1,229 @@
+"""
+Hoja de operación del evento: PDF operativo (PRE / DURANTE / POST) que se imprime y
+se lleva en la Quinta. Es solo lectura sobre datos que ya existen; no persiste nada.
+
+Qué NO lleva, a propósito: precios, costos, proveedores, RFC, correo ni datos fiscales o de
+identificación del cliente (el PDF circula entre personal operativo).
+"""
+from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal
+from types import SimpleNamespace
+
+from comercial.models import Cotizacion, Producto
+from core_erp.documentos import render_pdf
+from core_erp.horarios import formato_hora_ampm
+
+from .constantes import (
+    AFORO_MAXIMO,
+    OFFSET_DESMONTAJE,
+    OFFSET_LLEGADA_EQUIPO,
+    OFFSET_LLEGADA_PROVEEDORES,
+    TOLERANCIA_SALDO,
+    WHATSAPP_ATENCION_QUINTA,
+)
+from .models import PlantillaChecklist
+from .services import _fecha_larga
+
+PLANTILLA = 'operaciones/pdf_hoja_operacion.html'
+MAX_HOJAS = 15
+ESTADOS_OPERABLES = ('CONFIRMADA', 'EJECUTADA')
+SERVICIOS_OPERABLES = ('EVENTO', 'PASADIA', 'ARRENDAMIENTO')
+HORA_EN_BLANCO = '____'
+CENTAVOS = Decimal('0.01')
+
+_FLAGS_BARRA = (
+    'incluye_refrescos', 'incluye_cerveza', 'incluye_licor_nacional',
+    'incluye_licor_premium', 'incluye_cocteleria_basica', 'incluye_cocteleria_premium',
+)
+
+CHECKLIST_CIERRE = (
+    'Apagar el equipo de sonido al concluir el horario contratado',
+    'Cerrar la barra y registrar lo que regresó',
+    'Revisar baños, áreas comunes y alberca',
+    'Recoger objetos olvidados y entregarlos al encargado',
+    'Retirar a proveedores y cerrar el montaje',
+    'Revisar daños y faltantes de mobiliario y áreas',
+    'Apagar luces y equipos',
+    'Cerrar portón y áreas de acceso',
+)
+
+
+def cotizaciones_operables(fechas=None):
+    """Ventas confirmadas o ejecutadas de eventos, pasadías y arrendamientos, con todo precargado."""
+    qs = Cotizacion.objects.filter(estado__in=ESTADOS_OPERABLES, tipo_servicio__in=SERVICIOS_OPERABLES)
+    if fechas is not None:
+        qs = qs.filter(fecha_evento__in=list(fechas))
+    return (
+        qs.select_related('cliente', 'tipo_evento', 'insumo_barman', 'insumo_auxiliar', 'deposito_garantia')
+        .prefetch_related('items__producto', 'items__insumo', 'pagos', 'contratos__firma', 'tareas_operativas')
+        .order_by('fecha_evento', 'hora_inicio', 'pk')
+    )
+
+
+def _hora(hora):
+    return formato_hora_ampm(hora) or HORA_EN_BLANCO
+
+
+def _con_offset(hora, offset):
+    if not hora:
+        return HORA_EN_BLANCO
+    return formato_hora_ampm((datetime.combine(datetime(2000, 1, 1), hora) + offset).time())
+
+
+def _cantidad(valor):
+    return format(Decimal(valor).normalize(), 'f')
+
+
+def _servicios(cotizacion):
+    orden = [clave for clave, _ in Producto.GRUPO_COTIZADOR_CHOICES]
+    grupos = {}
+    for item in cotizacion.items.all():
+        producto = item.producto
+        etiqueta = producto.get_grupo_cotizador_display() if producto and producto.grupo_cotizador else 'Otros'
+        clave = producto.grupo_cotizador if producto and producto.grupo_cotizador else 'zzz'
+        descripcion = item.descripcion or (producto.nombre if producto else '') \
+            or (item.insumo.nombre if item.insumo else '') or '—'
+        grupos.setdefault((orden.index(clave) if clave in orden else len(orden), etiqueta), []).append(
+            {'descripcion': descripcion, 'cantidad': _cantidad(item.cantidad)})
+    return [{'grupo': etiqueta, 'lineas': lineas} for (_, etiqueta), lineas in sorted(grupos.items())]
+
+
+def _insumos_barra(cotizacion):
+    """Nombre, cantidad y unidad de la lista de barra; nunca proveedor ni costos."""
+    from comercial.views import generar_lista_compras_barra
+
+    try:
+        lista = generar_lista_compras_barra(cotizacion)
+    except Exception:  # la hoja sale aunque falle el cálculo de barra
+        return []
+    return [{'nombre': e.get('item', ''), 'cantidad': e.get('cantidad', ''), 'unidad': e.get('unidad', '')}
+            for items in lista.values() for e in items]
+
+
+def _barra(cotizacion):
+    modelo = type(cotizacion)
+    incluye = [str(modelo._meta.get_field(f).verbose_name) for f in _FLAGS_BARRA if getattr(cotizacion, f)]
+    if not incluye:
+        return None
+    return {
+        'incluye': incluye,
+        'horas': cotizacion.horas_servicio,
+        'barman': cotizacion.insumo_barman.nombre if cotizacion.insumo_barman else '',
+        'auxiliar': cotizacion.insumo_auxiliar.nombre if cotizacion.insumo_auxiliar else '',
+        'insumos': _insumos_barra(cotizacion),
+    }
+
+
+def _saldo(cotizacion):
+    """Misma regla de `saldo_pendiente()` (VENTA neta de reembolsos), sobre los pagos precargados."""
+    pagos = list(cotizacion.pagos.all())
+    ingresos = sum((p.monto for p in pagos if p.tipo == 'INGRESO' and p.concepto == 'VENTA'), Decimal('0.00'))
+    reembolsos = sum((p.monto for p in pagos if p.tipo == 'REEMBOLSO'), Decimal('0.00'))
+    return (cotizacion.precio_final - (ingresos - reembolsos)).quantize(CENTAVOS, rounding=ROUND_HALF_UP)
+
+
+def _deposito(cotizacion):
+    deposito = getattr(cotizacion, 'deposito_garantia', None)
+    if deposito is None:
+        return None
+    return {
+        'monto': deposito.monto,
+        'estado': deposito.get_estado_display(),
+        'en_custodia': deposito.en_custodia,
+    }
+
+
+def _contrato_firmado(cotizacion):
+    for contrato in cotizacion.contratos.all():
+        firma = getattr(contrato, 'firma', None)
+        if firma is not None and firma.firmado:
+            return True
+    return False
+
+
+def _checklist(cotizacion, plantillas):
+    tipo = PlantillaChecklist.TIPO_POR_SERVICIO.get(cotizacion.tipo_servicio)
+    if not tipo:
+        return None
+    if tipo not in plantillas:
+        plantillas[tipo] = (PlantillaChecklist.objects.filter(tipo=tipo, activa=True)
+                            .prefetch_related('items').first())
+    plantilla = plantillas[tipo]
+    if plantilla is None:
+        return None
+    tareas = [t for t in cotizacion.tareas_operativas.all() if t.plantilla_id == plantilla.pk]
+    tarea = tareas[0] if tareas else None
+    return {
+        'titulo': plantilla.titulo_mensaje(),
+        'items': [i.texto for i in sorted(plantilla.items.all(), key=lambda i: i.orden)],
+        'hora_entrada': formato_hora_ampm(tarea.hora_entrada) if tarea else '',
+    }
+
+
+def armar_contexto_hoja(cotizacion, plantillas=None) -> dict:
+    """Datos de una hoja, listos para la plantilla (sin precios, costos ni datos fiscales)."""
+    plantillas = {} if plantillas is None else plantillas
+    saldo = _saldo(cotizacion)
+    aforo = AFORO_MAXIMO.get(cotizacion.tipo_servicio)
+    return {
+        'folio': f"COT-{cotizacion.pk:03d}",
+        'nombre_evento': cotizacion.nombre_evento,
+        'tipo_servicio': cotizacion.get_tipo_servicio_display(),
+        'tipo_evento': str(cotizacion.tipo_evento) if cotizacion.tipo_evento else '',
+        'fecha': cotizacion.fecha_evento,
+        'fecha_larga': _fecha_larga(cotizacion.fecha_evento, con_anio=True),
+        'hora_inicio': _hora(cotizacion.hora_inicio),
+        'hora_fin': _hora(cotizacion.hora_fin),
+        'num_personas': cotizacion.num_personas,
+        'cliente_nombre': cotizacion.cliente.nombre,
+        'cliente_telefono': cotizacion.cliente.telefono,
+        'servicios': _servicios(cotizacion),
+        'barra': _barra(cotizacion),
+        'notas_cliente': cotizacion.notas_cliente,
+        'saldo': saldo,
+        'por_cobrar': saldo > Decimal(str(TOLERANCIA_SALDO)),
+        'deposito': _deposito(cotizacion),
+        'contrato_firmado': _contrato_firmado(cotizacion),
+        'identificacion_revisada': cotizacion.identificacion_revisada,
+        'checklist': _checklist(cotizacion, plantillas),
+        'cronograma': [
+            ('Llegada del equipo', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_EQUIPO)),
+            ('Llegada de proveedores', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_PROVEEDORES)),
+            ('Inicio del servicio', _hora(cotizacion.hora_inicio)),
+            ('Cierre del servicio', _hora(cotizacion.hora_fin)),
+            ('Desmontaje', _con_offset(cotizacion.hora_fin, OFFSET_DESMONTAJE)),
+        ],
+        'aforo_maximo': aforo,
+        'whatsapp_atencion': WHATSAPP_ATENCION_QUINTA,
+        'checklist_cierre': CHECKLIST_CIERRE,
+        'incidentes': range(6),
+        'renglones_barra': range(8),
+        'renglones_danos': range(4),
+    }
+
+
+def _indice(hojas):
+    """Portada de varias hojas: agrupadas por día (fecha · evento · hora)."""
+    dias = []
+    for hoja in hojas:
+        if not dias or dias[-1]['fecha'] != hoja['fecha']:
+            dias.append({'fecha': hoja['fecha'], 'fecha_larga': hoja['fecha_larga'], 'hojas': []})
+        dias[-1]['hojas'].append(hoja)
+    return dias
+
+
+def contexto_documento_hoja(cotizaciones) -> dict:
+    plantillas = {}
+    hojas = [armar_contexto_hoja(c, plantillas) for c in cotizaciones]
+    return {
+        'titulo': 'Hoja de operación' if len(hojas) == 1 else 'Agenda de operación',
+        'hojas': hojas,
+        'indice': _indice(hojas) if len(hojas) > 1 else [],
+    }
+
+
+def generar_hoja_pdf(cotizaciones, usuario=None, request=None) -> bytes:
+    """Un solo PDF (un solo render) con la hoja de cada cotización; con varias, lleva portada-índice."""
+    if request is None and usuario is not None:
+        request = SimpleNamespace(user=usuario)
+    return render_pdf(PLANTILLA, contexto_documento_hoja(cotizaciones), request=request)
