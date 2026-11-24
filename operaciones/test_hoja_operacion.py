@@ -1,9 +1,15 @@
 """Hoja de operación del evento: servicio, vista, acción de admin y comando."""
+import shutil
+import tempfile
 from datetime import date, time, timedelta
 from decimal import Decimal
+from io import StringIO
+from pathlib import Path
 
 from django.contrib.auth.models import Group, Permission, User
 from django.contrib.messages import get_messages
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.db import connection
 from django.template.loader import render_to_string
 from django.test import TestCase
@@ -416,3 +422,45 @@ class AccionHojaTest(TestCase):
         cot = crear_cotizacion()
         respuesta = self._accion([cot])
         self.assertNotEqual(respuesta['Content-Type'], 'application/pdf')
+
+
+class ComandoHojaTest(TestCase):
+    def setUp(self):
+        self.salida = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.salida, ignore_errors=True)
+
+    def _correr(self, fechas, **extra):
+        salida = StringIO()
+        call_command('hoja_operacion', fechas=fechas, salida=str(self.salida), stdout=salida, **extra)
+        return salida.getvalue()
+
+    def test_un_pdf_por_cotizacion_y_la_agenda(self):
+        a = crear_cotizacion(nombre='A')
+        b = crear_cotizacion(nombre='B', fecha=FECHA + timedelta(days=1))
+        crear_cotizacion(nombre='Fuera', fecha=FECHA + timedelta(days=5))
+        self._correr('2026-11-27, 2026-11-28')
+        nombres = sorted(p.name for p in self.salida.iterdir())
+        self.assertEqual(nombres, sorted([
+            f'QKT_HojaOperacion_20261127_COT-{a.pk:03d}.pdf',
+            f'QKT_HojaOperacion_20261128_COT-{b.pk:03d}.pdf',
+            'AGENDA_20261127_20261128.pdf',
+        ]))
+        for ruta in self.salida.iterdir():
+            self.assertTrue(ruta.read_bytes().startswith(b'%PDF'))
+
+    def test_crea_la_carpeta_si_falta(self):
+        crear_cotizacion()
+        destino = self.salida / 'nueva' / 'carpeta'
+        call_command('hoja_operacion', fechas='2026-11-27', salida=str(destino), stdout=StringIO())
+        self.assertTrue(any(destino.iterdir()))
+
+    def test_fecha_invalida(self):
+        with self.assertRaisesMessage(CommandError, 'Fecha inválida'):
+            self._correr('2026-13-45')
+        self.assertEqual(list(self.salida.iterdir()), [])
+
+    def test_sin_resultados(self):
+        crear_cotizacion(estado='BORRADOR')
+        with self.assertRaisesMessage(CommandError, 'No hay eventos operables'):
+            self._correr('2026-11-27')
+        self.assertEqual(list(self.salida.iterdir()), [])
