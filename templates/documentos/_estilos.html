@@ -206,6 +206,18 @@ table.doc-tabla tbody tr.detalle:nth-child(even) td { background: transparent; }
 /* ===== PIE DEL CUERPO ===== */
 .doc-notas { margin-top: 14px; font-size: 7pt; color: var(--tinta-3); }
 
+/* ===== HOJAS OPERATIVAS (casillas, renglones para escribir, recuadros) ===== */
+.doc-casilla { display: inline-block; width: 11px; height: 11px; border: 1.2px solid var(--tinta); margin-right: 6px; vertical-align: -1px; }
+.doc-lista-casillas { list-style: none; margin-bottom: 10px; }
+.doc-lista-casillas li { padding: 3px 0; border-bottom: 1px solid var(--linea-suave); page-break-inside: avoid; }
+.doc-renglon { height: 20px; border-bottom: 1px solid var(--tinta-3); }
+table.doc-tabla td.doc-renglon-celda { height: 20px; border-bottom: 1px solid var(--tinta-3); }
+.doc-recuadro { border: 1.5px solid var(--tinta); padding: 6px 10px; margin-bottom: 10px; page-break-inside: avoid; }
+.doc-recuadro--grande { font-size: 10.5pt; font-weight: 700; padding: 8px 12px; }
+.doc-hoja-cabecera { border-bottom: 2px solid var(--verde); padding-bottom: 4px; margin-bottom: 10px; }
+.doc-hoja-cabecera h2 { font-size: 15pt; font-weight: 700; color: var(--verde-oscuro); }
+.doc-hoja-cabecera .doc-hoja-etapa { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.6px; color: var(--tinta-2); }
+
 /* ===== UTILIDADES ===== */
 .texto-exito, table.doc-tabla tr td.texto-exito { color: var(--exito); }
 .texto-error, table.doc-tabla tr td.texto-error { color: var(--error); }
