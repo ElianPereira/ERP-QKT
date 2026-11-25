@@ -22,6 +22,13 @@ from core_erp import impuestos
 from core_erp.admin_filtros import con_titulo, filtro_periodo
 from core_erp.admin_utils import confirmar_accion_destructiva
 from core_erp.descargas import url_descarga
+from operaciones.services_hoja import (
+    ESTADOS_OPERABLES,
+    MAX_HOJAS,
+    SERVICIOS_OPERABLES,
+    cotizaciones_operables,
+)
+from operaciones.views import hoja_operacion, respuesta_hoja
 from ventas.permisos import es_vendedor
 
 from .admin_filtros import (
@@ -797,11 +804,10 @@ class CotizacionAdmin(admin.ModelAdmin):
         ('Cancelación', {'fields': ('motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion'), 'classes': ('collapse',)}),
         ('Documentos', {
             'fields': ('archivo_pdf', 'identificacion_oficial', 'identificacion_revisada',
-                       'identificacion_revisada_por', 'identificacion_revisada_en', 'privacidad_cliente', 'hoja_evento_btn',
-                       'enviar_email_btn'),
+                       'identificacion_revisada_por', 'identificacion_revisada_en', 'privacidad_cliente', 'enviar_email_btn'),
         }),
     )
-    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'hoja_evento_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por', 'privacidad_cliente', 'comision_ventas', 'seguimiento_venta')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por', 'privacidad_cliente', 'comision_ventas', 'seguimiento_venta')
 
     # Costos y márgenes que el grupo Vendedor no ve (Issue #505).
     CAMPOS_DE_COSTO = ('factor_utilidad_barra', 'resumen_barra_html')
@@ -945,13 +951,6 @@ class CotizacionAdmin(admin.ModelAdmin):
             return ui.badge('Aceptado', ui.EXITO)
         return ui.badge('Pendiente', ui.ALERTA)
 
-    @admin.display(description='Hoja del evento')
-    def hoja_evento_btn(self, obj):
-        if not obj.pk:
-            return ui.vacio()
-        return ui.boton('Descargar hoja del evento', reverse('cotizacion_hoja_evento', args=[obj.id]), 'primario',
-                        icono='clipboard-list', nueva_pestana=True, compacto=False)
-
     def enviar_email_btn(self, obj):
         if not obj.pk:
             return "-"
@@ -1071,8 +1070,6 @@ class CotizacionAdmin(admin.ModelAdmin):
             items += [{'texto': f'Plan en {n} pagos', 'url': f'{url_plan}?parcialidades={n}', 'icono': 'calendar-plus'}
                       for n in range(2, 7)]
         items.append({'separador': True})
-        items.append({'texto': 'Hoja del evento', 'url': reverse('cotizacion_hoja_evento', args=[obj.id]),
-                      'icono': 'clipboard-list', 'nueva_pestana': True})
         items.append({'texto': 'Lista de compras', 'url': reverse('cotizacion_lista_compras', args=[obj.id]),
                       'icono': 'basket-shopping', 'nueva_pestana': True})
         portal = getattr(obj, 'portal', None)
@@ -1112,6 +1109,9 @@ class CotizacionAdmin(admin.ModelAdmin):
             path('<int:cotizacion_id>/descuentos/',
                 self.admin_site.admin_view(self.descuentos_view),
                 name='cotizacion_descuentos'),
+            path('<int:cotizacion_id>/hoja-operacion/',
+                self.admin_site.admin_view(hoja_operacion),
+                name='cotizacion_hoja_operacion'),
             path('<int:cotizacion_id>/enviar-portal-whatsapp/',
                 self.admin_site.admin_view(self.enviar_portal_wa_view),
                 name='cotizacion_enviar_portal_wa'),
@@ -1193,7 +1193,36 @@ class CotizacionAdmin(admin.ModelAdmin):
         }
         return render(request, 'admin/comercial/cotizacion/descuentos.html', context)
 
-    actions = ['evaluar_descuentos_aplicables', 'aplicar_beneficio_referido', 'asignar_vendedor']
+    actions = ['evaluar_descuentos_aplicables', 'aplicar_beneficio_referido', 'asignar_vendedor',
+               'hoja_operacion_pdf']
+
+    @admin.action(description='Hoja de operación (PDF)')
+    def hoja_operacion_pdf(self, request, queryset):
+        """Un solo PDF con la hoja de cada venta operable seleccionada (máximo `MAX_HOJAS`)."""
+        if es_vendedor(request.user):
+            raise PermissionDenied
+        ids = list(queryset.values_list('pk', flat=True))
+        operables = list(cotizaciones_operables().filter(pk__in=ids))
+        omitidas = sorted(set(ids) - {c.pk for c in operables})
+        if not operables:
+            self.message_user(request, 'Ninguna de las seleccionadas es un evento, pasadía o arrendamiento '
+                                       'confirmado o ejecutado.', messages.ERROR)
+            return None
+        if len(operables) > MAX_HOJAS:
+            self.message_user(request, f'Selecciona máximo {MAX_HOJAS} cotizaciones por PDF '
+                                       f'(elegiste {len(operables)}).', messages.ERROR)
+            return None
+        if omitidas:
+            folios = ', '.join(f'COT-{pk:03d}' for pk in omitidas)
+            self.message_user(request, f'Se omitieron por no ser operables: {folios}.', messages.WARNING)
+        return respuesta_hoja(operables, request)
+
+    def render_change_form(self, request, context, add=False, change=False, form_url='', obj=None):
+        # Botón «Hoja de operación» (plantilla del detalle): solo operable y nunca para un vendedor.
+        if obj is not None and obj.pk and not es_vendedor(request.user) \
+                and obj.estado in ESTADOS_OPERABLES and obj.tipo_servicio in SERVICIOS_OPERABLES:
+            context['hoja_operacion_url'] = reverse('admin:cotizacion_hoja_operacion', args=[obj.pk])
+        return super().render_change_form(request, context, add, change, form_url, obj)
 
     @admin.action(description='Asignar vendedor (Dirección)')
     def asignar_vendedor(self, request, queryset):

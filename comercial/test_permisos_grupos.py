@@ -34,7 +34,6 @@ STORAGES_PRUEBA = {
 VISTAS_PROTEGIDAS = [
     ('configurar_plantilla_barra', {}),
     ('cotizacion_lista_compras', {'cotizacion_id': 99999}),
-    ('cotizacion_hoja_evento', {'cotizacion_id': 99999}),
     ('cotizacion_pdf', {'cotizacion_id': 99999}),
     ('cotizacion_email', {'cotizacion_id': 99999}),
     ('producto_ficha_pdf', {'producto_id': 99999}),

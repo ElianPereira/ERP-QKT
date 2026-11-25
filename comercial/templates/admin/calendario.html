@@ -374,7 +374,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         eventDidMount: function(info) {
             info.el.title = info.event.title;
-            // Ícono para descargar la hoja del evento sin abrir la cotización.
+            // Ícono para abrir la hoja de operación sin entrar a la cotización.
             var hoja = info.event.extendedProps.hoja;
             if (hoja) {
                 var enlace = document.createElement('a');
@@ -382,8 +382,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 enlace.target = '_blank';
                 enlace.rel = 'noopener';
                 enlace.className = 'calendario-hoja';
-                enlace.title = 'Descargar hoja del evento';
-                enlace.setAttribute('aria-label', 'Descargar hoja del evento');
+                enlace.title = 'Hoja de operación';
+                enlace.setAttribute('aria-label', 'Hoja de operación');
                 enlace.innerHTML = '<i class="fas fa-file-pdf" aria-hidden="true"></i>';
                 enlace.addEventListener('click', function (e) { e.stopPropagation(); });
                 (info.el.querySelector('.fc-event-title, .fc-list-event-title') || info.el).prepend(enlace);

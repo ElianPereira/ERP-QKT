@@ -530,16 +530,6 @@ def descargar_lista_compras_pdf(request, cotizacion_id):
     return respuesta_pdf('pdf_lista_compras.html', contexto_lista_compras(cotizacion),
                          nombre_archivo('ListaCompras', f"COT-{cotizacion.id:03d}"), request=request)
 
-@staff_member_required
-@permission_required('comercial.view_cotizacion', raise_exception=True)
-def descargar_hoja_evento_pdf(request, cotizacion_id):
-    from .services_hoja_evento import contexto_hoja_evento
-
-    cotizacion = get_object_or_404(Cotizacion.objects.select_related('cliente', 'vendedor', 'tipo_evento'),
-                                   id=cotizacion_id)
-    return respuesta_pdf('cotizaciones/pdf_hoja_evento.html', contexto_hoja_evento(cotizacion),
-                         nombre_archivo('HojaEvento', f"COT-{cotizacion.id:03d}"), request=request)
-
 # ==========================================
 # 3. PDF Y EMAIL
 # ==========================================

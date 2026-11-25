@@ -57,9 +57,10 @@ _MESES = (
 )
 
 
-def _fecha_larga(fecha) -> str:
-    """`date` -> "jueves 27 de agosto", sin depender del locale del servidor."""
-    return f"{_DIAS_SEMANA[fecha.weekday()]} {fecha.day} de {_MESES[fecha.month - 1]}"
+def _fecha_larga(fecha, con_anio=False) -> str:
+    """`date` -> "jueves 27 de agosto" (con `con_anio`, "... de 2026"), sin depender del locale."""
+    texto = f"{_DIAS_SEMANA[fecha.weekday()]} {fecha.day} de {_MESES[fecha.month - 1]}"
+    return f"{texto} de {fecha.year}" if con_anio else texto
 
 
 def _telefono_responsable(tarea: TareaProgramada) -> str:

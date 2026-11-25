@@ -1,0 +1,217 @@
+{% extends "documentos/_base.html" %}
+{% load qkt_documentos qkt_horarios %}
+
+{% block variante %}operativo{% endblock %}
+{% block pie %}"Hoja de operación"{% endblock %}
+{% block encabezado %}{% endblock %}
+
+{% block contenido %}
+{% if indice %}
+<header class="doc-hoja-cabecera">
+  <div class="doc-hoja-etapa">Quinta Ko'ox Tanil</div>
+  <h2>Agenda de operación</h2>
+</header>
+{% for dia in indice %}
+<div class="doc-seccion">{{ dia.fecha_larga|capfirst }}</div>
+<table class="doc-tabla">
+  <thead>
+    <tr><th class="col-fecha">Hora</th><th>Evento</th><th>Servicio</th><th class="col-folio">Folio</th></tr>
+  </thead>
+  <tbody>
+    {% for h in dia.hojas %}
+    <tr>
+      <td class="codigo">{{ h.hora_inicio }}</td>
+      <td class="negrita">{{ h.nombre_evento }}</td>
+      <td>{{ h.tipo_servicio }}</td>
+      <td class="codigo">{{ h.folio }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endfor %}
+{% endif %}
+
+{% for h in hojas %}
+
+{# ===================== PRE ===================== #}
+<section class="{% if indice or not forloop.first %}salto-pagina{% endif %}">
+  <header class="doc-hoja-cabecera">
+    <div class="doc-hoja-etapa">Hoja de operación · Antes del servicio · {{ h.folio }}</div>
+    <h2>{{ h.nombre_evento }}</h2>
+  </header>
+
+  <div class="doc-columnas">
+    <dl class="doc-datos">
+      <div><dt>Tipo</dt><dd>{{ h.tipo_servicio }}{% if h.tipo_evento %} · {{ h.tipo_evento }}{% endif %}</dd></div>
+      <div><dt>Fecha</dt><dd>{{ h.fecha_larga|capfirst }}</dd></div>
+      <div><dt>Horario</dt><dd>{{ h.hora_inicio }} a {{ h.hora_fin }}</dd></div>
+      <div><dt>Personas</dt><dd>{{ h.num_personas }}</dd></div>
+    </dl>
+    <dl class="doc-datos">
+      <div><dt>Cliente</dt><dd>{{ h.cliente_nombre }}</dd></div>
+      <div><dt>Teléfono</dt><dd>{{ h.cliente_telefono|default:"—" }}</dd></div>
+      <div><dt>Folio</dt><dd>{{ h.folio }}</dd></div>
+    </dl>
+  </div>
+
+  <div class="doc-seccion">Servicios contratados</div>
+  {% if h.servicios %}
+  <table class="doc-tabla">
+    <thead><tr><th>Concepto</th><th class="num col-corta">Cant.</th></tr></thead>
+    <tbody>
+      {% for grupo in h.servicios %}
+      <tr class="subtotal"><td colspan="2">{{ grupo.grupo }}</td></tr>
+      {% for l in grupo.lineas %}
+      <tr><td>{{ l.descripcion }}</td><td class="num">{{ l.cantidad }}</td></tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="doc-aviso doc-aviso--info">Sin servicios capturados en la cotización.</div>
+  {% endif %}
+
+  <div class="doc-seccion">Barra</div>
+  {% if h.barra %}
+  <dl class="doc-datos">
+    <div><dt>Incluye</dt><dd>{{ h.barra.incluye|join:", " }}</dd></div>
+    <div><dt>Horas de servicio</dt><dd>{{ h.barra.horas }}</dd></div>
+    <div><dt>Bartender</dt><dd>{{ h.barra.barman|default:"Sin asignar" }}</dd></div>
+    <div><dt>Auxiliar</dt><dd>{{ h.barra.auxiliar|default:"Sin asignar" }}</dd></div>
+  </dl>
+  {% if h.barra.insumos %}
+  <table class="doc-tabla">
+    <thead><tr><th>Insumo</th><th class="num col-corta">Cant.</th><th>Unidad</th></tr></thead>
+    <tbody>
+      {% for i in h.barra.insumos %}
+      <tr><td>{{ i.nombre }}</td><td class="num">{{ i.cantidad }}</td><td>{{ i.unidad }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% else %}
+  <p class="texto-tenue">Sin barra contratada</p>
+  {% endif %}
+
+  {% if h.notas_cliente %}
+  <div class="doc-seccion">Notas del cliente</div>
+  <div class="doc-recuadro doc-texto">{{ h.notas_cliente }}</div>
+  {% endif %}
+
+  <div class="doc-seccion">Cobro, depósito y documentos</div>
+  {% if h.por_cobrar %}
+  <div class="doc-recuadro doc-recuadro--grande">Saldo por cobrar en sitio: {{ h.saldo|moneda }} · Cobrar antes de iniciar el servicio</div>
+  {% else %}
+  <div class="doc-recuadro doc-recuadro--grande">Pagado en su totalidad</div>
+  {% endif %}
+  <dl class="doc-datos">
+    <div><dt>Depósito en garantía</dt><dd>{% if h.deposito %}{{ h.deposito.monto|moneda }} · {{ h.deposito.estado }}{% else %}No aplica{% endif %}</dd></div>
+    <div><dt>Contrato firmado</dt><dd>{% if h.contrato_firmado %}Sí{% else %}No{% endif %}</dd></div>
+    <div><dt>Identificación revisada</dt><dd>{% if h.identificacion_revisada %}Sí{% else %}No{% endif %}</dd></div>
+  </dl>
+
+  {% if h.checklist %}
+  <div class="doc-seccion">{{ h.checklist.titulo }}{% if h.checklist.hora_entrada %} · Entrada del personal: {{ h.checklist.hora_entrada }}{% endif %}</div>
+  <ul class="doc-lista-casillas">
+    {% for texto in h.checklist.items %}<li><span class="doc-casilla"></span>{{ texto }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+</section>
+
+{# ===================== DURANTE ===================== #}
+<section class="salto-pagina">
+  <header class="doc-hoja-cabecera">
+    <div class="doc-hoja-etapa">Hoja de operación · Durante el servicio · {{ h.folio }}</div>
+    <h2>{{ h.nombre_evento }}</h2>
+  </header>
+
+  <div class="doc-seccion">Cronograma</div>
+  <table class="doc-tabla">
+    <thead><tr><th>Momento</th><th class="col-estado">Hora</th><th class="centro col-corta">Listo</th></tr></thead>
+    <tbody>
+      {% for etiqueta, hora in h.cronograma %}
+      <tr><td>{{ etiqueta }}</td><td class="negrita">{{ hora }}</td><td class="centro"><span class="doc-casilla"></span></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="doc-seccion">Reglas del servicio</div>
+  <div class="doc-condiciones"><ul>
+    <li>Aforo máximo: {% if h.aforo_maximo %}{{ h.aforo_maximo }} personas (inexcedible){% else %}No aplica{% endif %}. Personas confirmadas: {{ h.num_personas }}.</li>
+    <li>Horario contratado: {{ h.hora_inicio }} a {{ h.hora_fin }}; al concluir se apaga el sonido puntualmente.</li>
+    <li>Ruido: respetar el volumen y la tranquilidad de los vecinos; bajarlo si el personal lo pide.</li>
+    <li>Barra: cerrar al terminar el horario; no se sirve alcohol a menores de edad.</li>
+  </ul></div>
+
+  <div class="doc-seccion">Conteo de aforo</div>
+  <table class="doc-tabla">
+    <thead><tr><th>Momento</th><th>Personas</th><th>Hora</th></tr></thead>
+    <tbody>
+      <tr><td>Al iniciar</td><td class="doc-renglon-celda"></td><td class="doc-renglon-celda"></td></tr>
+      <tr><td>A la mitad del servicio</td><td class="doc-renglon-celda"></td><td class="doc-renglon-celda"></td></tr>
+    </tbody>
+  </table>
+
+  {% if h.barra %}
+  <div class="doc-seccion">Control de barra</div>
+  <table class="doc-tabla">
+    <thead><tr><th>Producto</th><th>Salida</th><th>Regresó</th></tr></thead>
+    <tbody>
+      {% for n in h.renglones_barra %}
+      <tr><td class="doc-renglon-celda"></td><td class="doc-renglon-celda"></td><td class="doc-renglon-celda"></td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+
+  <div class="doc-seccion">Incidentes</div>
+  {% for n in h.incidentes %}<div class="doc-renglon"></div>{% endfor %}
+
+  <div class="doc-seccion">Contactos</div>
+  <dl class="doc-datos">
+    <div><dt>WhatsApp de atención de la Quinta</dt><dd>{{ h.whatsapp_atencion }}</dd></div>
+    {% if h.a_cargo.encargado %}<div><dt>A cargo: {{ h.a_cargo.encargado.nombre }}</dt><dd>{{ h.a_cargo.encargado.telefono }}</dd></div>{% endif %}
+    {% for p in h.a_cargo.apoyo %}<div><dt>Apoyo: {{ p.nombre }} ({{ p.temas }})</dt><dd>{{ p.telefono }}</dd></div>{% endfor %}
+    <div><dt>Cliente: {{ h.cliente_nombre }}</dt><dd>{{ h.cliente_telefono|default:"—" }}</dd></div>
+  </dl>
+</section>
+
+{# ===================== POST ===================== #}
+<section class="salto-pagina">
+  <header class="doc-hoja-cabecera">
+    <div class="doc-hoja-etapa">Hoja de operación · Después del servicio · {{ h.folio }}</div>
+    <h2>{{ h.nombre_evento }}</h2>
+  </header>
+
+  <div class="doc-seccion">Cierre</div>
+  <ul class="doc-lista-casillas">
+    {% for texto in h.checklist_cierre %}<li><span class="doc-casilla"></span>{{ texto }}</li>{% endfor %}
+  </ul>
+
+  <div class="doc-seccion">Cobro final</div>
+  {% if h.por_cobrar %}
+  <div class="doc-recuadro">Saldo pendiente al preparar la hoja: {{ h.saldo|moneda }}. Monto cobrado: ______________ Método: ______________</div>
+  {% else %}
+  <div class="doc-recuadro">Pagado en su totalidad al preparar la hoja. Cobros adicionales: ______________</div>
+  {% endif %}
+
+  <div class="doc-seccion">Depósito en garantía</div>
+  {% if h.deposito %}
+  <p>Monto: {{ h.deposito.monto|moneda }} · Estado: {{ h.deposito.estado }}. En custodia: {{ h.deposito.en_custodia|moneda }}</p>
+  <p><span class="doc-casilla"></span>Devolver completo &nbsp;&nbsp; <span class="doc-casilla"></span>Retener, monto: ______________</p>
+  {% else %}
+  <p class="texto-tenue">No aplica</p>
+  {% endif %}
+
+  <div class="doc-seccion">Daños y faltantes</div>
+  {% for n in h.renglones_danos %}<div class="doc-renglon"></div>{% endfor %}
+
+  <div class="doc-firmas">
+    <div class="doc-firma"><div class="doc-firma-linea">Encargado de la Quinta</div><div class="doc-firma-rol">Nombre y firma</div></div>
+    <div class="doc-firma"><div class="doc-firma-linea">{{ h.cliente_nombre }}</div><div class="doc-firma-rol">Cliente</div></div>
+  </div>
+
+  <p class="doc-notas">Generado por {{ doc_generado_por|default:"el sistema" }} el {{ doc_generado_en|date:"d/m/Y" }} {{ doc_generado_en|hora_ampm }}</p>
+</section>
+{% endfor %}
+{% endblock %}
