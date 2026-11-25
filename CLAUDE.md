@@ -285,6 +285,21 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-11-25 — **Equipo de apoyo temporal** (pedido del propietario: 3 eventos mientras viaja; sin zonas restringidas; migración
+  `comunicacion.0022`, aditiva: 5 booleanos en `Responsable` y el choice `APOYO`). `Responsable.rol='APOYO'` = varias personas a la vez,
+  **siempre con `vigente_desde`/`vigente_hasta`** (sin las dos fechas no cuenta; el formulario las exige junto con al menos un tema) y número
+  confirmado por ACEPTO. Temas: `avisa_eventos` (parte del día), `avisa_operacion` (copia de los URGENTES con rol ENCARGADO), `avisa_llegadas`
+  (pendientes LLEGADA, con botón), `avisa_pagos` (alerta de pago acreditado) y `avisa_compras` (lista de compras, con «Ya compré»). **No
+  sustituye a nadie**: `responsable()`/`telefono_de()`/`telefonos_aviso()` no lo ven, así que ningún candado de dinero (terminal, órdenes de
+  Dirección, cancelaciones, ARCO) lo acepta; para que alguien atienda todo lo del encargado se usa el **suplente** de ENCARGADO que ya existía.
+  `Pendiente.rol` usa `Responsable.ROLES_PENDIENTE` (sin APOYO). `atender_boton` deja a un APOYO vigente marcar atendido solo LLEGADA/COMPRAS
+  de su tema (`APOYO_RESUELVE`) y anota su nombre en el detalle; nunca «Intervengo». `rol_de_telefono` devuelve `APOYO`, así Kooxi no les
+  contesta como clientes. **Parte del día** (`services_apoyo`, `enviar_parte_del_dia` a las 08:05 en el programador): solo si hay apoyo
+  vigente con `avisa_eventos` y algo que contar; servicios CONFIRMADOS de hoy y mañana (+ hospedaje en curso) y visitas de hoy, a apoyo y a
+  `telefonos_aviso('ENCARGADO')`; datos del cliente solo a internos y apoyo con operación/llegadas/pagos, saldo solo a internos y pagos,
+  visitas solo a internos y llegadas/operación. Idempotente por día y teléfono. Pendiente del propietario: dar de alta el suplente de
+  Encargado y el equipo de apoyo en **Comunicación → Responsables** con su rango de fechas y que cada número responda ACEPTO.
+
 - 2026-11-18 — **Personal de ventas, fase 3: tablero, «Mis comisiones», reportes e integración (PR 5 del Issue #505)** (rama
   `claude/ventas-505-fase3`; **solo lectura**: no cambia cómo se devenga ni cómo se paga; sin zonas restringidas; migraciones aditivas:
   `ventas.0003` —un permiso—, `reportes.0007` —un choice— y `marketing.0010` —un choice—). `ventas/services_tablero.py` es la fuente única de

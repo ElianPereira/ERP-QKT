@@ -311,14 +311,19 @@ class Responsable(models.Model):
     para que un número mal capturado no mande avisos a un desconocido.
     Un suplente es un renglón con rango de fechas: dentro del rango gana sobre
     el permanente. No se borra, se desactiva.
+
+    El rol APOYO es un equipo temporal (p. ej. mientras Dirección viaja): varias
+    personas a la vez, siempre con rango de fechas, que reciben copia de los
+    temas marcados. No sustituye a nadie ni decide sobre dinero.
     """
-    ROL_CHOICES = [
+    ROLES_PENDIENTE = [
         ('ENCARGADO', 'Encargado'),
         ('DIRECCION', 'Dirección'),
         ('CONTADOR', 'Contador'),
         ('COMPRAS', 'Compras'),
         ('VENTAS', 'Ventas'),
     ]
+    ROL_CHOICES = ROLES_PENDIENTE + [('APOYO', 'Equipo de apoyo')]
     COPIA_CHOICES = [
         ('EN_VIVO', 'En vivo'),
         ('CADA_HORA', 'Cada hora'),
@@ -337,6 +342,16 @@ class Responsable(models.Model):
     vigente_desde = models.DateField(null=True, blank=True, verbose_name='Vigente desde',
                                      help_text='Solo para suplencias; vacío = sin límite.')
     vigente_hasta = models.DateField(null=True, blank=True, verbose_name='Vigente hasta')
+    avisa_eventos = models.BooleanField(default=False, verbose_name='Parte del día',
+                                        help_text='Equipo de apoyo: servicios de hoy y mañana a las 8:00 a.m.')
+    avisa_operacion = models.BooleanField(default=False, verbose_name='Copia de pendientes del encargado',
+                                          help_text='Equipo de apoyo: copia de los avisos urgentes del encargado.')
+    avisa_llegadas = models.BooleanField(default=False, verbose_name='Llegadas',
+                                         help_text='Equipo de apoyo: cliente o visita que llegó; puede marcarlo recibido.')
+    avisa_pagos = models.BooleanField(default=False, verbose_name='Pagos',
+                                      help_text='Equipo de apoyo: pagos recibidos y saldos por cobrar.')
+    avisa_compras = models.BooleanField(default=False, verbose_name='Compras',
+                                        help_text='Equipo de apoyo: lista de compras de barra; puede marcarla comprada.')
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
                                    related_name='+', verbose_name='Creado por')
     updated_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL,
@@ -410,7 +425,7 @@ class Pendiente(models.Model):
                             verbose_name='Tipo')
     severidad = models.CharField(max_length=8, choices=SEVERIDAD_CHOICES, default='NORMAL', db_index=True,
                                  verbose_name='Severidad')
-    rol = models.CharField(max_length=10, choices=Responsable.ROL_CHOICES, db_index=True, verbose_name='Responsable')
+    rol = models.CharField(max_length=10, choices=Responsable.ROLES_PENDIENTE, db_index=True, verbose_name='Responsable')
     titulo = models.CharField(max_length=200, verbose_name='Título')
     detalle = models.TextField(blank=True, verbose_name='Detalle')
     content_type = models.ForeignKey(ContentType, null=True, blank=True, on_delete=models.SET_NULL,

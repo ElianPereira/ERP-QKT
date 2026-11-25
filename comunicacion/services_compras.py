@@ -18,7 +18,7 @@ from .formato_wa import Aviso
 from .models import Pendiente
 from .services import enviar_email
 from .services_pendientes import BOTON_OK, _enviar_aviso, id_boton, registrar_pendiente
-from .services_responsables import SIN_DESTINO, responsable, telefono_de
+from .services_responsables import SIN_DESTINO, responsable, telefono_de, telefonos_apoyo
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +82,11 @@ def enviar_lista(cotizacion):
                   lineas=[f'Evento: {cotizacion.fecha_evento:%d/%m/%Y}, {cotizacion.num_personas} personas',
                           *_resumen(contexto).split('; ')],
                   cierre='Toca «Ya compré» al terminar.', enlace=enlace)
-    _enviar_aviso(destino, aviso,
-                  botones=[(id_boton(pendiente.pk, BOTON_OK), 'Ya compré')], clave=f'{clave}:whatsapp')
+    botones = [(id_boton(pendiente.pk, BOTON_OK), 'Ya compré')]
+    _enviar_aviso(destino, aviso, botones=botones, clave=f'{clave}:whatsapp')
+    for apoyo in telefonos_apoyo('COMPRAS'):
+        if apoyo != destino:
+            _enviar_aviso(apoyo, aviso, botones=botones, clave=f'{clave}:apoyo:{apoyo}')
     _enviar_pdf(cotizacion, contexto, rol)
     return pendiente
 
