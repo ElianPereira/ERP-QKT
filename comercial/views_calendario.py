@@ -33,7 +33,7 @@ def _construir_eventos_calendario(fecha_inicio, fecha_fin):
             'start': c.fecha_evento.strftime("%Y-%m-%d"),
             'color': '#27ae60' if c.estado == 'CONFIRMADA' else '#95a5a6',
             'url': f'/admin/comercial/cotizacion/{c.id}/change/',
-            'extendedProps': {'tipo': 'evento'}
+            'extendedProps': {'tipo': 'evento', 'hoja': reverse('cotizacion_hoja_evento', args=[c.id])}
         }
         if c.tipo_servicio == 'HOSPEDAJE' and c.fecha_salida:
             # Rango real (FullCalendar: 'end' es exclusivo).

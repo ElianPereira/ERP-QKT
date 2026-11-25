@@ -92,6 +92,7 @@ try:
     from comercial.views import (
         configurar_plantilla_barra,
         descargar_ficha_producto,
+        descargar_hoja_evento_pdf,
         descargar_lista_compras_pdf,
         enviar_cotizacion_email,
         exportar_cierre_excel,
@@ -140,6 +141,7 @@ urlpatterns = [
     path('cotizacion/<int:cotizacion_id>/pdf/', generar_pdf_cotizacion, name='cotizacion_pdf'),
     path('cotizacion/<int:cotizacion_id>/email/', enviar_cotizacion_email, name='cotizacion_email'),
     path('cotizacion/<int:cotizacion_id>/lista-compras/', descargar_lista_compras_pdf, name='cotizacion_lista_compras'),
+    path('cotizacion/<int:cotizacion_id>/hoja-evento/', descargar_hoja_evento_pdf, name='cotizacion_hoja_evento'),
     path('producto/<int:producto_id>/ficha/', descargar_ficha_producto, name='producto_ficha_pdf'),
 
     # ASISTENTE DE CONFIGURACIÓN DE PLANTILLA DE BARRA

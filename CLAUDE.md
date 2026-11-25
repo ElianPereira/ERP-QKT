@@ -285,6 +285,15 @@ arriba cada vez que se resuelva algo no obvio; no borres entradas viejas
 salvo que queden obsoletas.
 
 
+- 2026-11-25 — **Hoja del evento en PDF** (pedido del propietario: «desde cada evento, cotización o calendario descargar el PDF del qué,
+  cómo, quién y dónde»; sin zonas restringidas, sin migración). `comercial/services_hoja_evento.contexto_hoja_evento` solo lee lo que ya
+  existe: conceptos (sin precios), horario, domicilio, `AsignacionEspacio`, `AsignacionPersonal`, `TareaProgramada` con los pasos de su
+  `PlantillaChecklist`, encargado (o suplente) y equipo de apoyo vigentes en `fecha_evento`, notas del cliente, total/pagado/saldo,
+  contrato (firmado o no) y depósito; **sin costos ni márgenes**. Vista `cotizacion_hoja_evento` (`view_cotizacion`), PDF
+  `QKT_HojaEvento_COT-NNN.pdf` (`cotizaciones/pdf_hoja_evento.html`, en `PLANTILLAS_MIGRADAS`). Accesos: botón en Documentos de la
+  cotización, menú «⋯» de la lista y un ícono PDF en cada evento del calendario (`extendedProps.hoja`; el clic en el resto del evento sigue
+  abriendo la cotización). Sección del manual `1005_hoja_del_evento`.
+
 - 2026-11-25 — **Equipo de apoyo temporal** (pedido del propietario: 3 eventos mientras viaja; sin zonas restringidas; migración
   `comunicacion.0022`, aditiva: 5 booleanos en `Responsable` y el choice `APOYO`). `Responsable.rol='APOYO'` = varias personas a la vez,
   **siempre con `vigente_desde`/`vigente_hasta`** (sin las dos fechas no cuenta; el formulario las exige junto con al menos un tema) y número

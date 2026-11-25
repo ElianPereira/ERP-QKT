@@ -797,10 +797,11 @@ class CotizacionAdmin(admin.ModelAdmin):
         ('Cancelación', {'fields': ('motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion'), 'classes': ('collapse',)}),
         ('Documentos', {
             'fields': ('archivo_pdf', 'identificacion_oficial', 'identificacion_revisada',
-                       'identificacion_revisada_por', 'identificacion_revisada_en', 'privacidad_cliente', 'enviar_email_btn'),
+                       'identificacion_revisada_por', 'identificacion_revisada_en', 'privacidad_cliente', 'hoja_evento_btn',
+                       'enviar_email_btn'),
         }),
     )
-    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por', 'privacidad_cliente', 'comision_ventas', 'seguimiento_venta')
+    readonly_fields = ('subtotal', 'iva', 'retencion_isr', 'retencion_iva', 'precio_final', 'enviar_email_btn', 'hoja_evento_btn', 'resumen_barra_html', 'cancelada_por', 'fecha_cancelacion', 'identificacion_revisada_por', 'identificacion_revisada_en', 'atendido_por', 'privacidad_cliente', 'comision_ventas', 'seguimiento_venta')
 
     # Costos y márgenes que el grupo Vendedor no ve (Issue #505).
     CAMPOS_DE_COSTO = ('factor_utilidad_barra', 'resumen_barra_html')
@@ -944,6 +945,13 @@ class CotizacionAdmin(admin.ModelAdmin):
             return ui.badge('Aceptado', ui.EXITO)
         return ui.badge('Pendiente', ui.ALERTA)
 
+    @admin.display(description='Hoja del evento')
+    def hoja_evento_btn(self, obj):
+        if not obj.pk:
+            return ui.vacio()
+        return ui.boton('Descargar hoja del evento', reverse('cotizacion_hoja_evento', args=[obj.id]), 'primario',
+                        icono='clipboard-list', nueva_pestana=True, compacto=False)
+
     def enviar_email_btn(self, obj):
         if not obj.pk:
             return "-"
@@ -1063,6 +1071,8 @@ class CotizacionAdmin(admin.ModelAdmin):
             items += [{'texto': f'Plan en {n} pagos', 'url': f'{url_plan}?parcialidades={n}', 'icono': 'calendar-plus'}
                       for n in range(2, 7)]
         items.append({'separador': True})
+        items.append({'texto': 'Hoja del evento', 'url': reverse('cotizacion_hoja_evento', args=[obj.id]),
+                      'icono': 'clipboard-list', 'nueva_pestana': True})
         items.append({'texto': 'Lista de compras', 'url': reverse('cotizacion_lista_compras', args=[obj.id]),
                       'icono': 'basket-shopping', 'nueva_pestana': True})
         portal = getattr(obj, 'portal', None)

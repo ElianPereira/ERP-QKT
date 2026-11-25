@@ -28,6 +28,7 @@ PLANTILLAS_MIGRADAS = sorted(
         # Fase 3: documentos operativos.
         _BASE / 'comercial' / 'templates' / 'nomina' / 'recibo_nomina.html',
         _BASE / 'comercial' / 'templates' / 'pdf_lista_compras.html',
+        _BASE / 'comercial' / 'templates' / 'cotizaciones' / 'pdf_hoja_evento.html',
         _BASE / 'comercial' / 'templates' / 'comercial' / 'pdf_ficha_producto.html',
         _BASE / 'comercial' / 'templates' / 'comercial' / 'pdf' / 'evidencia_contracargo.html',
         # Manual de procedimientos (Issue #507).
