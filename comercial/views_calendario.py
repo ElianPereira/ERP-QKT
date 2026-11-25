@@ -16,9 +16,11 @@ from .disponibilidad import bloqueos_activos, rango_traslapa
 from .models import AsignacionEspacio, AsignacionPersonal, Cotizacion
 
 
-def _construir_eventos_calendario(fecha_inicio, fecha_fin):
+def _construir_eventos_calendario(fecha_inicio, fecha_fin, con_hoja=False):
     """Arma la lista de eventos del calendario, acotada al rango
-    [fecha_inicio, fecha_fin) — nunca el histórico completo (SEC-DOS-001)."""
+    [fecha_inicio, fecha_fin) — nunca el histórico completo (SEC-DOS-001).
+    Con `con_hoja`, cada venta operable lleva el enlace a su hoja de operación."""
+    from operaciones.services_hoja import ESTADOS_OPERABLES, SERVICIOS_OPERABLES
     eventos_lista = []
 
     # Traslape de rango, no solo las que empiezan dentro de la ventana: un
@@ -35,6 +37,8 @@ def _construir_eventos_calendario(fecha_inicio, fecha_fin):
             'url': f'/admin/comercial/cotizacion/{c.id}/change/',
             'extendedProps': {'tipo': 'evento'}
         }
+        if con_hoja and c.estado in ESTADOS_OPERABLES and c.tipo_servicio in SERVICIOS_OPERABLES:
+            evento['extendedProps']['hoja'] = reverse('admin:cotizacion_hoja_operacion', args=[c.id])
         if c.tipo_servicio == 'HOSPEDAJE' and c.fecha_salida:
             # Rango real (FullCalendar: 'end' es exclusivo).
             evento['end'] = c.fecha_salida.strftime("%Y-%m-%d")
@@ -114,4 +118,6 @@ def calendario_unificado_eventos(request):
     if not fecha_inicio or not fecha_fin:
         return JsonResponse({'error': "Parámetros 'start' y 'end' requeridos (YYYY-MM-DD)."}, status=400)
 
-    return JsonResponse(_construir_eventos_calendario(fecha_inicio, fecha_fin), safe=False)
+    from ventas.permisos import es_vendedor
+    eventos = _construir_eventos_calendario(fecha_inicio, fecha_fin, con_hoja=not es_vendedor(request.user))
+    return JsonResponse(eventos, safe=False)

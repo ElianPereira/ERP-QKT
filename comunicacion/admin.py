@@ -353,7 +353,8 @@ class ResponsableForm(forms.ModelForm):
 
     class Meta:
         model = Responsable
-        fields = ('rol', 'nombre', 'email', 'modo_copia', 'activo', 'vigente_desde', 'vigente_hasta')
+        fields = ('rol', 'nombre', 'email', 'modo_copia', 'activo', 'vigente_desde', 'vigente_hasta',
+                  'avisa_eventos', 'avisa_operacion', 'avisa_llegadas', 'avisa_pagos', 'avisa_compras')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -371,6 +372,11 @@ class ResponsableForm(forms.ModelForm):
         desde, hasta = datos.get('vigente_desde'), datos.get('vigente_hasta')
         if desde and hasta and hasta < desde:
             self.add_error('vigente_hasta', 'La fecha final no puede ser anterior a la inicial.')
+        if datos.get('rol') == 'APOYO':
+            if not (desde and hasta):
+                self.add_error('vigente_hasta', 'El equipo de apoyo es temporal: captura desde y hasta cuándo.')
+            if not any(datos.get(campo) for campo in services_responsables.TEMAS_APOYO.values()):
+                self.add_error('avisa_eventos', 'Marca al menos un tema de avisos para el equipo de apoyo.')
         return datos
 
 
@@ -395,12 +401,19 @@ class ResponsableAdmin(admin.ModelAdmin):
     list_display = ('nombre', 'rol_badge', 'telefono_actual', 'estado_badge', 'copia', 'vigencia', 'activo')
     list_filter = ('rol', 'activo')
     search_fields = ('nombre', 'telefono_wa', 'telefono_pendiente')
-    fields = ('rol', 'nombre', 'telefono', 'estado_numero', 'email', 'modo_copia', 'activo',
-              'vigente_desde', 'vigente_hasta')
+    fieldsets = (
+        (None, {'fields': ('rol', 'nombre', 'telefono', 'estado_numero', 'email', 'modo_copia', 'activo',
+                           'vigente_desde', 'vigente_hasta')}),
+        ('Equipo de apoyo', {
+            'fields': ('avisa_eventos', 'avisa_operacion', 'avisa_llegadas', 'avisa_pagos', 'avisa_compras'),
+            'description': 'Solo para el rol «Equipo de apoyo»: qué avisos recibe mientras dure su vigencia. '
+                           'No decide sobre dinero ni sustituye al encargado.'}),
+    )
     readonly_fields = ('estado_numero',)
     inlines = [CambioResponsableInline]
-    columnas_texto = ('nombre',)
-    CAMPOS_BITACORA = ('rol', 'nombre', 'email', 'modo_copia', 'activo', 'vigente_desde', 'vigente_hasta')
+    columnas_texto = ('nombre', 'copia')
+    CAMPOS_BITACORA = ('rol', 'nombre', 'email', 'modo_copia', 'activo', 'vigente_desde', 'vigente_hasta',
+                       'avisa_eventos', 'avisa_operacion', 'avisa_llegadas', 'avisa_pagos', 'avisa_compras')
     actions = ('reenviar_acepto',)
 
     @admin.action(description='Reenviar solicitud de ACEPTO')
@@ -449,8 +462,12 @@ class ResponsableAdmin(admin.ModelAdmin):
     def estado_numero(self, obj):
         return self.estado_badge(obj) if obj and obj.pk else ui.vacio()
 
-    @admin.display(description='Copia')
+    @admin.display(description='Copia / temas')
     def copia(self, obj):
+        if obj.rol == 'APOYO':
+            temas = [Responsable._meta.get_field(campo).verbose_name
+                     for campo in services_responsables.TEMAS_APOYO.values() if getattr(obj, campo)]
+            return ', '.join(temas) or ui.vacio()
         return obj.get_modo_copia_display() if obj.rol == 'DIRECCION' else ui.vacio()
 
     @admin.display(description='Vigencia')

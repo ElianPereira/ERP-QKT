@@ -136,6 +136,7 @@ TAREAS = (
     Tarea('enviar_avisos_previos_visitas', 'enviar_avisos_previos_visitas', cada(10), 30 * MIN),
     Tarea('revisar_pendientes', 'revisar_pendientes', cada(15), 45 * MIN),
     Tarea('enviar_resumen_diario', 'enviar_resumen_diario', diario('08:00'), 6 * HORA),
+    Tarea('enviar_parte_del_dia', 'enviar_parte_del_dia', diario('08:05'), 6 * HORA),
     Tarea('enviar_resumen_semanal', 'enviar_resumen_semanal', semanal(LUNES, '08:30'), 24 * HORA),
     Tarea('revisar_desviacion', 'revisar_desviacion', diario('09:30'), 6 * HORA),
     Tarea('enviar_nomina_semanal', 'enviar_nomina_semanal', semanal(VIERNES, '12:00'), 24 * HORA),

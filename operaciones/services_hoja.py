@@ -160,9 +160,41 @@ def _checklist(cotizacion, plantillas):
     }
 
 
-def armar_contexto_hoja(cotizacion, plantillas=None) -> dict:
-    """Datos de una hoja, listos para la plantilla (sin precios, costos ni datos fiscales)."""
+def _a_cargo(fecha) -> dict:
+    """Encargado (o su suplente) y equipo de apoyo vigentes el día del servicio, en una sola consulta.
+    Mismo criterio que `comunicacion.services_responsables.responsable` y `equipo_apoyo`."""
+    from comunicacion.models import Responsable
+    from comunicacion.services_responsables import TEMAS_APOYO
+    from comunicacion.services_visitas import telefono_legible
+
+    def vigente(r):
+        return (r.vigente_desde is None or r.vigente_desde <= fecha) and (r.vigente_hasta is None or r.vigente_hasta >= fecha)
+
+    filas = [r for r in Responsable.objects.filter(rol__in=('ENCARGADO', 'APOYO'), activo=True)
+             .exclude(telefono_wa='').order_by('-id') if vigente(r)]
+    encargados = [r for r in filas if r.rol == 'ENCARGADO']
+    suplentes = [r for r in encargados if r.vigente_desde or r.vigente_hasta]
+    encargado = (suplentes or encargados or [None])[0]
+    apoyo = sorted((r for r in filas if r.rol == 'APOYO' and r.vigente_desde and r.vigente_hasta),
+                   key=lambda r: (r.nombre, r.id))
+    return {
+        'encargado': ({'nombre': encargado.nombre, 'telefono': telefono_legible(encargado.telefono_wa)}
+                      if encargado else None),
+        'apoyo': [{
+            'nombre': r.nombre, 'telefono': telefono_legible(r.telefono_wa),
+            'temas': ', '.join(str(Responsable._meta.get_field(c).verbose_name)
+                               for c in TEMAS_APOYO.values() if getattr(r, c)),
+        } for r in apoyo],
+    }
+
+
+def armar_contexto_hoja(cotizacion, plantillas=None, a_cargo=None) -> dict:
+    """Datos de una hoja, listos para la plantilla (sin precios, costos ni datos fiscales).
+    `a_cargo` es un caché por fecha para no repetir consultas en un PDF de varias hojas."""
     plantillas = {} if plantillas is None else plantillas
+    a_cargo = {} if a_cargo is None else a_cargo
+    if cotizacion.fecha_evento not in a_cargo:
+        a_cargo[cotizacion.fecha_evento] = _a_cargo(cotizacion.fecha_evento)
     saldo = _saldo(cotizacion)
     aforo = AFORO_MAXIMO.get(cotizacion.tipo_servicio)
     return {
@@ -195,6 +227,7 @@ def armar_contexto_hoja(cotizacion, plantillas=None) -> dict:
         ],
         'aforo_maximo': aforo,
         'whatsapp_atencion': WHATSAPP_ATENCION_QUINTA,
+        'a_cargo': a_cargo[cotizacion.fecha_evento],
         'checklist_cierre': CHECKLIST_CIERRE,
         'incidentes': range(6),
         'renglones_barra': range(8),
@@ -213,8 +246,8 @@ def _indice(hojas):
 
 
 def contexto_documento_hoja(cotizaciones) -> dict:
-    plantillas = {}
-    hojas = [armar_contexto_hoja(c, plantillas) for c in cotizaciones]
+    plantillas, a_cargo = {}, {}
+    hojas = [armar_contexto_hoja(c, plantillas, a_cargo) for c in cotizaciones]
     return {
         'titulo': 'Hoja de operación' if len(hojas) == 1 else 'Agenda de operación',
         'hojas': hojas,

@@ -170,6 +170,8 @@
   <div class="doc-seccion">Contactos</div>
   <dl class="doc-datos">
     <div><dt>WhatsApp de atención de la Quinta</dt><dd>{{ h.whatsapp_atencion }}</dd></div>
+    {% if h.a_cargo.encargado %}<div><dt>A cargo: {{ h.a_cargo.encargado.nombre }}</dt><dd>{{ h.a_cargo.encargado.telefono }}</dd></div>{% endif %}
+    {% for p in h.a_cargo.apoyo %}<div><dt>Apoyo: {{ p.nombre }} ({{ p.temas }})</dt><dd>{{ p.telefono }}</dd></div>{% endfor %}
     <div><dt>Cliente: {{ h.cliente_nombre }}</dt><dd>{{ h.cliente_telefono|default:"—" }}</dd></div>
   </dl>
 </section>

@@ -464,3 +464,22 @@ class ComandoHojaTest(TestCase):
         with self.assertRaisesMessage(CommandError, 'No hay eventos operables'):
             self._correr('2026-11-27')
         self.assertEqual(list(self.salida.iterdir()), [])
+
+
+class HojaOperacionACargoTest(TestCase):
+    """El día del servicio la hoja dice quién está a cargo: encargado (o suplente) y equipo de apoyo vigentes."""
+
+    def test_trae_encargado_y_apoyo_vigentes_ese_dia(self):
+        from comunicacion.models import Responsable
+        from operaciones.services_hoja import _a_cargo
+
+        dia = date(2026, 12, 12)
+        Responsable.objects.create(rol='ENCARGADO', nombre='Hermano', telefono_wa='529995550021',
+                                   vigente_desde=dia - timedelta(days=3), vigente_hasta=dia + timedelta(days=3))
+        Responsable.objects.create(rol='APOYO', nombre='César', telefono_wa='529995550025', avisa_llegadas=True,
+                                   vigente_desde=dia - timedelta(days=3), vigente_hasta=dia + timedelta(days=3))
+        a_cargo = _a_cargo(dia)
+        self.assertEqual(a_cargo['encargado'], {'nombre': 'Hermano', 'telefono': '999 555 0021'})
+        self.assertEqual([p['nombre'] for p in a_cargo['apoyo']], ['César'])
+        self.assertEqual(a_cargo['apoyo'][0]['temas'], 'Llegadas')
+        self.assertEqual(_a_cargo(dia + timedelta(days=30))['apoyo'], [])

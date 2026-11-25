@@ -60,6 +60,37 @@ def telefonos_aviso(rol: str, hoy=None) -> list:
     return list(dict.fromkeys(t for t in telefonos if t))
 
 
+TEMAS_APOYO = {
+    'EVENTOS': 'avisa_eventos',
+    'OPERACION': 'avisa_operacion',
+    'LLEGADAS': 'avisa_llegadas',
+    'PAGOS': 'avisa_pagos',
+    'COMPRAS': 'avisa_compras',
+}
+
+
+def equipo_apoyo(hoy=None) -> list:
+    """Integrantes del equipo de apoyo vigentes hoy, con número confirmado. Sin
+    rango de fechas completo no cuentan: el apoyo siempre es temporal."""
+    hoy = hoy or timezone.localdate()
+    return list(Responsable.objects.filter(
+        rol='APOYO', activo=True, vigente_desde__lte=hoy, vigente_hasta__gte=hoy,
+    ).exclude(telefono_wa='').order_by('nombre', 'id'))
+
+
+def telefonos_apoyo(tema: str, hoy=None) -> list:
+    """Teléfonos del equipo de apoyo vigente que recibe ese tema."""
+    campo = TEMAS_APOYO[tema]
+    telefonos = (normalizar_telefono_wa(r.telefono_wa) for r in equipo_apoyo(hoy) if getattr(r, campo))
+    return list(dict.fromkeys(t for t in telefonos if t))
+
+
+def apoyo_de_telefono(telefono: str, hoy=None):
+    """El integrante vigente del equipo de apoyo con ese número, o None."""
+    tel = normalizar_telefono_wa(telefono)
+    return next((r for r in equipo_apoyo(hoy) if tel and normalizar_telefono_wa(r.telefono_wa) == tel), None)
+
+
 def destinos_ventas(hoy=None) -> list:
     """A dónde van los avisos de ventas (cotización nueva, visitas, prospectos): los del rol VENTAS si
     existe un responsable activo; si no, los del ENCARGADO, igual que antes (Issue #505)."""
@@ -114,7 +145,14 @@ def _pedir_acepto(resp) -> None:
 
     _enviar_aviso(resp.telefono_pendiente, Aviso(
         titulo='Activa este número para recibir avisos', categoria='Quinta Ko\'ox Tanil',
-        lineas=[f'Recibirá los avisos de {resp.get_rol_display()}'], cierre='Responde ACEPTO para activarlo.'))
+        lineas=[f'Recibirá los avisos de {resp.get_rol_display()}', *_vigencia_apoyo(resp)],
+        cierre='Responde ACEPTO para activarlo.'))
+
+
+def _vigencia_apoyo(resp) -> list:
+    if resp.rol != 'APOYO' or not (resp.vigente_desde and resp.vigente_hasta):
+        return []
+    return [f'Del {resp.vigente_desde:%d/%m/%Y} al {resp.vigente_hasta:%d/%m/%Y}']
 
 
 def reenviar_acepto(resp, usuario=None) -> None:

@@ -28,7 +28,15 @@ from .services import (
     enviar_whatsapp_template,
     normalizar_telefono_wa,
 )
-from .services_responsables import SIN_DESTINO, responsable, rol_de_telefono, telefono_de, telefonos_aviso
+from .services_responsables import (
+    SIN_DESTINO,
+    apoyo_de_telefono,
+    responsable,
+    rol_de_telefono,
+    telefono_de,
+    telefonos_apoyo,
+    telefonos_aviso,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +49,8 @@ MAS_VIEJOS = 5
 BOTON_TOMAR = 'tomar'
 BOTON_OK = 'ok'
 RE_BOTON = re.compile(r'^pend:(\d+):(tomar|ok)$')
+# Pendientes que el equipo de apoyo puede marcar como atendidos: tipo → tema que lo habilita.
+APOYO_RESUELVE = {'LLEGADA': 'avisa_llegadas', 'COMPRAS': 'avisa_compras'}
 
 
 def id_boton(pendiente_id: int, accion: str) -> str:
@@ -125,6 +135,31 @@ def _avisar_urgente(pendiente, botones=None, etiqueta_ok: str = 'Resuelto') -> N
         accion = BOTON_OK if destino == principal else BOTON_TOMAR
         etiqueta = etiqueta_ok if accion == BOTON_OK else 'Intervengo'
         _enviar_aviso(destino, aviso, botones=[(id_boton(pendiente.pk, accion), etiqueta)])
+    _copiar_a_apoyo(pendiente, aviso, set(destinos), con_boton=not botones, etiqueta_ok=etiqueta_ok)
+
+
+def _temas_apoyo_de(pendiente) -> list:
+    """Temas del equipo de apoyo que reciben copia de este pendiente."""
+    temas = ['OPERACION'] if pendiente.rol == 'ENCARGADO' else []
+    if pendiente.tipo == 'LLEGADA':
+        temas.append('LLEGADAS')
+    if pendiente.tipo == 'COMPRAS':
+        temas.append('COMPRAS')
+    return temas
+
+
+def _copiar_a_apoyo(pendiente, aviso, ya_avisados, *, con_boton=True, etiqueta_ok='Resuelto') -> None:
+    """Copia al equipo de apoyo vigente. Solo quien tiene el tema que lo habilita
+    (llegadas, compras) recibe el botón para marcarlo atendido."""
+    destinos = []
+    for tema in _temas_apoyo_de(pendiente):
+        destinos.extend(t for t in telefonos_apoyo(tema) if t not in ya_avisados and t not in destinos)
+    campo = APOYO_RESUELVE.get(pendiente.tipo)
+    for destino in destinos:
+        integrante = apoyo_de_telefono(destino)
+        puede = con_boton and campo and integrante is not None and getattr(integrante, campo)
+        botones = [(id_boton(pendiente.pk, BOTON_OK), etiqueta_ok)] if puede else None
+        _enviar_aviso(destino, aviso, botones=botones, clave=f'pend:{pendiente.pk}:apoyo:{destino}')
 
 
 def registrar_pendiente(*, titulo: str, rol: str, tipo: str = 'ALERTA', severidad: str = 'NORMAL',
@@ -221,6 +256,8 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
     rol = rol_de_telefono(telefono)
     if pendiente is None or rol is None:
         return None
+    if rol == 'APOYO':
+        return _atender_boton_apoyo(telefono, pendiente, coincide.group(2))
     if coincide.group(2) == BOTON_TOMAR:
         if rol == 'DIRECCION' and tomar(pendiente):
             return f'✅ Listo, tomaste el pendiente: {pendiente.titulo}.'
@@ -228,6 +265,20 @@ def atender_boton(telefono: str, texto: str) -> Optional[str]:
     if rol == pendiente.rol and resolver(pendiente):
         return f'✅ Listo, quedó resuelto: {pendiente.titulo}.'
     return None
+
+
+def _atender_boton_apoyo(telefono, pendiente, accion) -> Optional[str]:
+    """El equipo de apoyo solo marca atendido lo de su tema (llegadas, compras)
+    y solo mientras su vigencia corre; nunca toma ni decide otra cosa."""
+    campo = APOYO_RESUELVE.get(pendiente.tipo)
+    integrante = apoyo_de_telefono(telefono)
+    if accion != BOTON_OK or not campo or integrante is None or not getattr(integrante, campo):
+        return None
+    if not resolver(pendiente):
+        return None
+    nota = f'Atendido por {integrante.nombre} (equipo de apoyo) desde WhatsApp.'
+    Pendiente.objects.filter(pk=pendiente.pk).update(detalle='\n'.join(filter(None, [pendiente.detalle, nota])))
+    return f'✅ Listo, quedó atendido: {pendiente.titulo}.'
 
 
 # ───────────────────────────── Cron: escalar y copiar ─────────────────────────

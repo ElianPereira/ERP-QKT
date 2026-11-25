@@ -134,3 +134,20 @@ class CalendarioEventosRangoTest(TestCase):
             reverse('calendario_unificado_eventos'), {'start': '2027-06-01', 'end': '2027-07-01'},
         )
         self.assertEqual(respuesta.status_code, 403)
+
+
+class CalendarioHojaOperacionTest(TestCase):
+    """Cada venta operable del calendario lleva el enlace a su hoja de operación; un borrador no."""
+
+    def test_enlace_solo_en_ventas_operables(self):
+        login_superuser_con_totp(self.client, get_user_model().objects.create_superuser('dir', 'd@x.mx', 'x'))
+        cliente = Cliente.objects.create(nombre='Ana')
+        confirmada = Cotizacion.objects.create(cliente=cliente, nombre_evento='Boda', fecha_evento=date(2027, 6, 10))
+        borrador = Cotizacion.objects.create(cliente=cliente, nombre_evento='XV', fecha_evento=date(2027, 6, 12))
+        Cotizacion.objects.filter(pk=confirmada.pk).update(estado='CONFIRMADA')
+        eventos = self.client.get(reverse('calendario_unificado_eventos'),
+                                  {'start': '2027-06-01', 'end': '2027-07-01'}).json()
+        hojas = {e['url']: e['extendedProps'].get('hoja') for e in eventos if e['extendedProps']['tipo'] == 'evento'}
+        self.assertEqual(hojas[f'/admin/comercial/cotizacion/{confirmada.pk}/change/'],
+                         reverse('admin:cotizacion_hoja_operacion', args=[confirmada.pk]))
+        self.assertIsNone(hojas[f'/admin/comercial/cotizacion/{borrador.pk}/change/'])

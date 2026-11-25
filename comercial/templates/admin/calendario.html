@@ -239,6 +239,8 @@
             padding: 2px 4px !important;
         }
     }
+    .calendario-hoja { color: inherit; margin-right: 4px; padding: 0 2px; }
+    .calendario-hoja:hover { opacity: 0.8; }
 </style>
 {% endblock %}
 
@@ -372,6 +374,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
         eventDidMount: function(info) {
             info.el.title = info.event.title;
+            // Ícono para abrir la hoja de operación sin entrar a la cotización.
+            var hoja = info.event.extendedProps.hoja;
+            if (hoja) {
+                var enlace = document.createElement('a');
+                enlace.href = hoja;
+                enlace.target = '_blank';
+                enlace.rel = 'noopener';
+                enlace.className = 'calendario-hoja';
+                enlace.title = 'Hoja de operación';
+                enlace.setAttribute('aria-label', 'Hoja de operación');
+                enlace.innerHTML = '<i class="fas fa-file-pdf" aria-hidden="true"></i>';
+                enlace.addEventListener('click', function (e) { e.stopPropagation(); });
+                (info.el.querySelector('.fc-event-title, .fc-list-event-title') || info.el).prepend(enlace);
+            }
         },
 
         dayMaxEvents: 3,

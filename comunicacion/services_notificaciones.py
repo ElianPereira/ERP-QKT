@@ -32,7 +32,7 @@ from .services import (
     enviar_whatsapp_template,
     normalizar_telefono_wa,
 )
-from .services_responsables import SIN_DESTINO, destinos_ventas, telefono_de, telefonos_aviso
+from .services_responsables import SIN_DESTINO, destinos_ventas, telefono_de, telefonos_apoyo, telefonos_aviso
 
 logger = logging.getLogger(__name__)
 
@@ -793,7 +793,7 @@ def alertar_equipo_pago(pago):
                 f'Monto pagado: ${monto} — {metodo}', f'Saldo pendiente: ${saldo_texto}'],
         enlace=portal).texto()
 
-    destinos = telefonos_aviso('ENCARGADO')
+    destinos = list(dict.fromkeys(telefonos_aviso('ENCARGADO') + telefonos_apoyo('PAGOS')))
     if not destinos:
         logger.error(
             "%s: %s; la alerta interna de "

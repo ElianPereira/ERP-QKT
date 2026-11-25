@@ -28,6 +28,16 @@ En **Comunicación → Responsables** se define quién recibe los avisos de cada
 3. Puedes definir **suplentes** con rango de fechas.
 4. Dirección puede recibir copia en vivo de los avisos del encargado.
 
+**Equipo de apoyo temporal** (por ejemplo, mientras Dirección viaja): en el mismo apartado elige el rol **Equipo de apoyo** para cada persona. Siempre lleva fechas **desde** y **hasta**; al terminar el rango deja de recibir avisos sin que tengas que hacer nada. Marca qué recibe cada quien:
+
+- **Parte del día**: a las 8:05 a.m., los servicios confirmados de hoy y mañana (folio, horario y personas).
+- **Copia de pendientes del encargado**: los avisos urgentes del encargado, solo para enterarse.
+- **Llegadas**: cliente o visita que llegó, con botón para marcarlo recibido. El parte del día le muestra además el nombre y teléfono del cliente y las visitas de hoy.
+- **Pagos**: pagos recibidos y, en el parte del día, el saldo por cobrar de cada servicio.
+- **Compras**: la lista de compras de barra, con botón «Ya compré».
+
+El equipo de apoyo **no decide sobre dinero** ni sustituye al encargado: para que alguien atienda todo lo del encargado, dalo de alta como **suplente** del rol Encargado con su rango de fechas. Igual que cualquier responsable, cada número debe contestar **ACEPTO** antes de recibir avisos.
+
 ### Procesos automáticos (el Programador)
 
 Un solo servicio de Railway corre `programador` cada 5 minutos y ejecuta las tareas del día: cierre de cotizaciones, recordatorios, guías, seguimientos, descarga del SAT, avisos de vencimientos, resúmenes y más. Cada corrida queda en **Operaciones → Ejecuciones**.
