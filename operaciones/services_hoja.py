@@ -27,7 +27,7 @@ from .services import _fecha_larga
 PLANTILLA = 'operaciones/pdf_hoja_operacion.html'
 MAX_HOJAS = 15
 ESTADOS_OPERABLES = ('CONFIRMADA', 'EJECUTADA')
-SERVICIOS_OPERABLES = ('EVENTO', 'PASADIA', 'ARRENDAMIENTO')
+SERVICIOS_OPERABLES = ('EVENTO', 'PASADIA', 'ARRENDAMIENTO', 'HOSPEDAJE')
 HORA_EN_BLANCO = '____'
 CENTAVOS = Decimal('0.01')
 
@@ -49,7 +49,7 @@ CHECKLIST_CIERRE = (
 
 
 def cotizaciones_operables(fechas=None):
-    """Ventas confirmadas o ejecutadas de eventos, pasadías y arrendamientos, con todo precargado."""
+    """Ventas confirmadas o ejecutadas de eventos, pasadías, arrendamientos y hospedajes, con todo precargado."""
     qs = Cotizacion.objects.filter(estado__in=ESTADOS_OPERABLES, tipo_servicio__in=SERVICIOS_OPERABLES)
     if fechas is not None:
         qs = qs.filter(fecha_evento__in=list(fechas))
@@ -188,6 +188,40 @@ def _a_cargo(fecha) -> dict:
     }
 
 
+def _es_estancia(cotizacion) -> bool:
+    return cotizacion.tipo_servicio == 'HOSPEDAJE' and bool(cotizacion.fecha_salida)
+
+
+def _fecha_larga_hoja(cotizacion) -> str:
+    inicio = _fecha_larga(cotizacion.fecha_evento, con_anio=True)
+    if not _es_estancia(cotizacion):
+        return inicio
+    return f"{inicio} al {_fecha_larga(cotizacion.fecha_salida, con_anio=True)}"
+
+
+def _horario(cotizacion) -> str:
+    if _es_estancia(cotizacion):
+        return f"Entrada {_hora(cotizacion.hora_inicio)} · Salida {_hora(cotizacion.hora_fin)}"
+    return f"{_hora(cotizacion.hora_inicio)} a {_hora(cotizacion.hora_fin)}"
+
+
+def _cronograma(cotizacion) -> list:
+    if _es_estancia(cotizacion):
+        return [
+            ('Habitaciones listas', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_PROVEEDORES)),
+            (f"Entrada ({cotizacion.fecha_evento:%d/%m})", _hora(cotizacion.hora_inicio)),
+            (f"Salida ({cotizacion.fecha_salida:%d/%m})", _hora(cotizacion.hora_fin)),
+            ('Revisión de habitaciones', _con_offset(cotizacion.hora_fin, OFFSET_DESMONTAJE)),
+        ]
+    return [
+        ('Llegada del equipo', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_EQUIPO)),
+        ('Llegada de proveedores', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_PROVEEDORES)),
+        ('Inicio del servicio', _hora(cotizacion.hora_inicio)),
+        ('Cierre del servicio', _hora(cotizacion.hora_fin)),
+        ('Desmontaje', _con_offset(cotizacion.hora_fin, OFFSET_DESMONTAJE)),
+    ]
+
+
 def armar_contexto_hoja(cotizacion, plantillas=None, a_cargo=None) -> dict:
     """Datos de una hoja, listos para la plantilla (sin precios, costos ni datos fiscales).
     `a_cargo` es un caché por fecha para no repetir consultas en un PDF de varias hojas."""
@@ -203,9 +237,9 @@ def armar_contexto_hoja(cotizacion, plantillas=None, a_cargo=None) -> dict:
         'tipo_servicio': cotizacion.get_tipo_servicio_display(),
         'tipo_evento': str(cotizacion.tipo_evento) if cotizacion.tipo_evento else '',
         'fecha': cotizacion.fecha_evento,
-        'fecha_larga': _fecha_larga(cotizacion.fecha_evento, con_anio=True),
+        'fecha_larga': _fecha_larga_hoja(cotizacion),
         'hora_inicio': _hora(cotizacion.hora_inicio),
-        'hora_fin': _hora(cotizacion.hora_fin),
+        'horario': _horario(cotizacion),
         'num_personas': cotizacion.num_personas,
         'cliente_nombre': cotizacion.cliente.nombre,
         'cliente_telefono': cotizacion.cliente.telefono,
@@ -218,13 +252,7 @@ def armar_contexto_hoja(cotizacion, plantillas=None, a_cargo=None) -> dict:
         'contrato_firmado': _contrato_firmado(cotizacion),
         'identificacion_revisada': cotizacion.identificacion_revisada,
         'checklist': _checklist(cotizacion, plantillas),
-        'cronograma': [
-            ('Llegada del equipo', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_EQUIPO)),
-            ('Llegada de proveedores', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_PROVEEDORES)),
-            ('Inicio del servicio', _hora(cotizacion.hora_inicio)),
-            ('Cierre del servicio', _hora(cotizacion.hora_fin)),
-            ('Desmontaje', _con_offset(cotizacion.hora_fin, OFFSET_DESMONTAJE)),
-        ],
+        'cronograma': _cronograma(cotizacion),
         'aforo_maximo': aforo,
         'whatsapp_atencion': WHATSAPP_ATENCION_QUINTA,
         'a_cargo': a_cargo[cotizacion.fecha_evento],

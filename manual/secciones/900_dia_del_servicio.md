@@ -35,7 +35,7 @@ Si llega alguien **sin cita ni reservación**, el aviso lo dice («Sin cita ni r
 ### Hoja de operación
 
 :::rol ENCARGADO, DIRECCION
-La **hoja de operación** es un PDF para imprimir y llevar el día del servicio. Se puede sacar de eventos, pasadías y arrendamientos **confirmados o ejecutados**; de un hospedaje, una cotización en borrador o una cancelada no.
+La **hoja de operación** es un PDF para imprimir y llevar el día del servicio. Se puede sacar de eventos, pasadías, arrendamientos y hospedajes **confirmados o ejecutados**; de una cotización en borrador o una cancelada no. En un hospedaje la hoja trae las fechas y horas de entrada y salida.
 
 - **Una sola cotización:** abre la cotización (**Eventos → Cotizaciones**) y toca **Hoja de operación** arriba, junto a los demás botones.
 - **Desde el calendario:** cada evento operable trae un ícono de PDF al inicio; tócalo para abrir su hoja. Un clic en el resto del evento abre la cotización como siempre.

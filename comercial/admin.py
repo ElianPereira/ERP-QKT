@@ -1205,7 +1205,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         operables = list(cotizaciones_operables().filter(pk__in=ids))
         omitidas = sorted(set(ids) - {c.pk for c in operables})
         if not operables:
-            self.message_user(request, 'Ninguna de las seleccionadas es un evento, pasadía o arrendamiento '
+            self.message_user(request, 'Ninguna de las seleccionadas es un evento, pasadía, arrendamiento u hospedaje '
                                        'confirmado o ejecutado.', messages.ERROR)
             return None
         if len(operables) > MAX_HOJAS:
