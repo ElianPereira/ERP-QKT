@@ -28,7 +28,7 @@ from operaciones.services_hoja import (
     SERVICIOS_OPERABLES,
     cotizaciones_operables,
 )
-from operaciones.views import hoja_operacion, respuesta_hoja
+from operaciones.views import hoja_operacion, hojas_operacion
 from ventas.permisos import es_vendedor
 
 from .admin_filtros import (
@@ -1109,6 +1109,9 @@ class CotizacionAdmin(admin.ModelAdmin):
             path('<int:cotizacion_id>/descuentos/',
                 self.admin_site.admin_view(self.descuentos_view),
                 name='cotizacion_descuentos'),
+            path('hoja-operacion/',
+                self.admin_site.admin_view(hojas_operacion),
+                name='cotizacion_hojas_operacion'),
             path('<int:cotizacion_id>/hoja-operacion/',
                 self.admin_site.admin_view(hoja_operacion),
                 name='cotizacion_hoja_operacion'),
@@ -1215,7 +1218,8 @@ class CotizacionAdmin(admin.ModelAdmin):
         if omitidas:
             folios = ', '.join(f'COT-{pk:03d}' for pk in omitidas)
             self.message_user(request, f'Se omitieron por no ser operables: {folios}.', messages.WARNING)
-        return respuesta_hoja(operables, request)
+        ids = ','.join(str(c.pk) for c in operables)
+        return redirect(f"{reverse('admin:cotizacion_hojas_operacion')}?ids={ids}")
 
     def render_change_form(self, request, context, add=False, change=False, form_url='', obj=None):
         # Botón «Hoja de operación» (plantilla del detalle): solo operable y nunca para un vendedor.
