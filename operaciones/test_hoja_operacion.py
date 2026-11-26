@@ -103,7 +103,7 @@ class ContextoHojaTest(TestCase):
         self.assertEqual(ctx['folio'], f'COT-{cot.pk:03d}')
         self.assertEqual(ctx['fecha_larga'], 'viernes 27 de noviembre de 2026')
         self.assertEqual(ctx['hora_inicio'], '2:00 p.m.')
-        self.assertEqual(ctx['hora_fin'], '10:00 p.m.')
+        self.assertEqual(ctx['horario'], '2:00 p.m. a 10:00 p.m.')
         self.assertEqual(ctx['cliente_telefono'], '9991234567')
         self.assertEqual(ctx['servicios'][0], {'grupo': 'Mobiliario', 'lineas': [
             {'descripcion': 'Mesa redonda', 'cantidad': '10'}]})
@@ -120,7 +120,7 @@ class ContextoHojaTest(TestCase):
     def test_sin_hora_fin_deja_renglones_en_blanco(self):
         cot = crear_cotizacion(hora_fin=None)
         ctx = armar_contexto_hoja(recargar(cot))
-        self.assertEqual(ctx['hora_fin'], '____')
+        self.assertEqual(ctx['horario'], '2:00 p.m. a ____')
         self.assertEqual(dict(ctx['cronograma'])['Cierre del servicio'], '____')
         self.assertEqual(dict(ctx['cronograma'])['Desmontaje'], '____')
         self.assertIn('____', html_de([recargar(cot)]))
@@ -263,11 +263,23 @@ class OperablesTest(TestCase):
         crear_cotizacion(nombre='Borrador', estado='BORRADOR')
         crear_cotizacion(nombre='Cancelada', estado='CANCELADA')
         crear_cotizacion(nombre='Cerrada', estado='CERRADA')
-        crear_cotizacion(nombre='Hospedaje', tipo='HOSPEDAJE')
+        crear_cotizacion(nombre='Hospedaje borrador', tipo='HOSPEDAJE', estado='BORRADOR')
 
         self.assertEqual([c.pk for c in cotizaciones_operables()], [temprano.pk, tarde.pk, manana.pk])
         self.assertEqual([c.pk for c in cotizaciones_operables([FECHA])], [temprano.pk, tarde.pk])
         self.assertEqual(list(cotizaciones_operables([date(2030, 1, 1)])), [])
+
+
+class HojaHospedajeTest(TestCase):
+    def test_hospedaje_confirmado_tiene_hoja_con_entrada_y_salida(self):
+        cot = crear_cotizacion(nombre='Estancia', tipo='HOSPEDAJE', hora_inicio=time(14, 0), hora_fin=time(10, 0),
+                               fecha_salida=FECHA + timedelta(days=2))
+        self.assertIn(cot.pk, {c.pk for c in cotizaciones_operables()})
+        html = html_de(cotizaciones_operables().filter(pk=cot.pk))
+        self.assertIn('Entrada 2:00 p.m. · Salida 10:00 a.m.', html)
+        self.assertIn('al domingo 29 de noviembre de 2026', html)
+        self.assertIn('Revisión de habitaciones', html)
+        self.assertNotIn('Llegada de proveedores', html)
 
 
 class PdfHojaTest(TestCase):
