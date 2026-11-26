@@ -45,6 +45,7 @@
       <div><dt>Tipo</dt><dd>{{ h.tipo_servicio }}{% if h.tipo_evento %} · {{ h.tipo_evento }}{% endif %}</dd></div>
       <div><dt>Fecha</dt><dd>{{ h.fecha_larga|capfirst }}</dd></div>
       <div><dt>Horario</dt><dd>{{ h.horario }}</dd></div>
+      {% if h.horario_actividad %}<div><dt>Evento</dt><dd>{{ h.horario_actividad|capfirst }}</dd></div>{% endif %}
       <div><dt>Personas</dt><dd>{{ h.num_personas }}</dd></div>
     </dl>
     <dl class="doc-datos">
@@ -106,8 +107,8 @@
   {% endif %}
   <dl class="doc-datos">
     <div><dt>Depósito en garantía</dt><dd>{% if h.deposito %}{{ h.deposito.monto|moneda }} · {{ h.deposito.estado }}{% else %}No aplica{% endif %}</dd></div>
-    <div><dt>Contrato firmado</dt><dd>{% if h.contrato_firmado %}Sí{% else %}No{% endif %}</dd></div>
-    <div><dt>Identificación revisada</dt><dd>{% if h.identificacion_revisada %}Sí{% else %}No{% endif %}</dd></div>
+    <div><dt>Contrato firmado</dt><dd>{% if h.contrato_firmado %}Sí{% elif h.documentos_no_requeridos %}No aplica{% else %}No{% endif %}</dd></div>
+    <div><dt>Identificación revisada</dt><dd>{% if h.identificacion_revisada %}Sí{% elif h.documentos_no_requeridos %}No aplica{% else %}No{% endif %}</dd></div>
   </dl>
 
   {% if h.checklist %}
@@ -138,7 +139,12 @@
   <div class="doc-seccion">Reglas del servicio</div>
   <div class="doc-condiciones"><ul>
     <li>Aforo máximo: {% if h.aforo_maximo %}{{ h.aforo_maximo }} personas (inexcedible){% else %}No aplica{% endif %}. Personas confirmadas: {{ h.num_personas }}.</li>
+    {% if h.horario_actividad %}
+    <li>Estancia: {{ h.horario }}</li>
+    <li>Horario del evento: {{ h.horario_actividad }}; al concluir se apaga el sonido puntualmente.</li>
+    {% else %}
     <li>Horario contratado: {{ h.horario }}; al concluir se apaga el sonido puntualmente.</li>
+    {% endif %}
     <li>Ruido: respetar el volumen y la tranquilidad de los vecinos; bajarlo si el personal lo pide.</li>
     <li>Barra: cerrar al terminar el horario; no se sirve alcohol a menores de edad.</li>
   </ul></div>

@@ -51,6 +51,8 @@ AFORO_MAXIMO = {'EVENTO': 150, 'PASADIA': 30, 'ARRENDAMIENTO': None}
 OFFSET_LLEGADA_EQUIPO = timedelta(hours=-3)
 OFFSET_LLEGADA_PROVEEDORES = timedelta(hours=-2)
 OFFSET_DESMONTAJE = timedelta(hours=1)
+# Revisión de habitaciones cuando el evento de la estancia empieza poco después de la salida.
+OFFSET_REVISION_ANTES_DE_EVENTO = timedelta(minutes=15)
 
 # Por debajo de este saldo (pesos) la hoja dice «Pagado en su totalidad»: misma tolerancia de Pago.clean().
 TOLERANCIA_SALDO = 0.50

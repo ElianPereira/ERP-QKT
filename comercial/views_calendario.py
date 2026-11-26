@@ -41,7 +41,7 @@ def _construir_eventos_calendario(fecha_inicio, fecha_fin, con_hoja=False):
             evento['extendedProps']['hoja'] = reverse('admin:cotizacion_hoja_operacion', args=[c.id])
         if c.tipo_servicio == 'HOSPEDAJE' and c.fecha_salida:
             # Rango real (FullCalendar: 'end' es exclusivo).
-            evento['end'] = c.fecha_salida.strftime("%Y-%m-%d")
+            evento['end'] = c.rango_ocupado()[1].strftime("%Y-%m-%d")
         eventos_lista.append(evento)
 
     # Bloqueos activos (rango con fin inclusivo; 'end' de FullCalendar es

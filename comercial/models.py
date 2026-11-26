@@ -629,6 +629,14 @@ class Cotizacion(models.Model):
     hora_inicio = models.TimeField(null=True, blank=True)
     hora_fin = models.TimeField(null=True, blank=True)
 
+    # Evento dentro de una estancia (ej. recalentado). Solo HOSPEDAJE.
+    fecha_actividad = models.DateField(
+        null=True, blank=True, verbose_name="Fecha del evento",
+        help_text="Entre la entrada y la salida, ambas incluidas.",
+    )
+    hora_actividad_inicio = models.TimeField(null=True, blank=True, verbose_name="Inicio del evento")
+    hora_actividad_fin = models.TimeField(null=True, blank=True, verbose_name="Fin del evento")
+
     num_personas = models.IntegerField(default=50, verbose_name="Número de Personas")
     incluye_refrescos = models.BooleanField(default=False, verbose_name="Refrescos y Mezcladores")
     incluye_cerveza = models.BooleanField(default=False, verbose_name="Cerveza (Caguama)")
@@ -729,6 +737,12 @@ class Cotizacion(models.Model):
         related_name='+', verbose_name="Revisada por",
     )
     identificacion_revisada_en = models.DateTimeField(null=True, blank=True, verbose_name="Revisada el")
+
+    documentos_no_requeridos = models.BooleanField(
+        default=False, verbose_name="Contrato e identificación no requeridos",
+        help_text="Para reservaciones contratadas antes de que se pidieran. "
+                  "La hoja de operación dirá «No aplica».",
+    )
 
     # Cuándo se revivió por última vez desde EXPIRADA/CANCELADA. El plazo de
     # expiración se cuenta desde aquí: contarlo desde `created_at` hacía que el
@@ -1026,6 +1040,9 @@ class Cotizacion(models.Model):
         """
         from datetime import timedelta
         fin = self.fecha_salida if self.fecha_salida else self.fecha_evento + timedelta(days=1)
+        # Un evento el día de la salida también ocupa ese día.
+        if self.fecha_actividad:
+            fin = max(fin, self.fecha_actividad + timedelta(days=1))
         return self.fecha_evento, fin
 
     def calcular_totales(self):
@@ -1067,6 +1084,7 @@ class Cotizacion(models.Model):
         """Si la cotización está apartando una fecha (anticipo o superior),
         valida que no choque con otra cotización ya apartada."""
         super().clean()
+        self._validar_actividad()
         if self.fecha_evento and self.estado == 'CONFIRMADA':
             try:
                 disponible, msg = self.fecha_disponible_detalle()
@@ -1095,6 +1113,20 @@ class Cotizacion(models.Model):
                     '(p. ej. "Coctelería De Autor Y Clásicos Por 3 Horas"). '
                     'Agrega "Licores Nacionales" o "Licores Premium".'
                 )
+
+    def _validar_actividad(self):
+        datos = (self.fecha_actividad, self.hora_actividad_inicio, self.hora_actividad_fin)
+        if all(d is None for d in datos):
+            return
+        if self.tipo_servicio != 'HOSPEDAJE':
+            raise ValidationError({'fecha_actividad': 'El evento dentro de la estancia solo aplica a Hospedaje.'})
+        if any(d is None for d in datos):
+            raise ValidationError({'fecha_actividad': 'Captura fecha, inicio y fin del evento, o deja los tres vacíos.'})
+        if self.hora_actividad_inicio == self.hora_actividad_fin:
+            raise ValidationError({'hora_actividad_fin': 'El fin del evento debe ser distinto del inicio.'})
+        if self.fecha_evento and self.fecha_salida \
+                and not self.fecha_evento <= self.fecha_actividad <= self.fecha_salida:
+            raise ValidationError({'fecha_actividad': 'La fecha del evento debe estar entre la entrada y la salida.'})
 
     def save(self, *args, **kwargs):
         with transaction.atomic():

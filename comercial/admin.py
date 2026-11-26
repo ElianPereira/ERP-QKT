@@ -787,6 +787,10 @@ class CotizacionAdmin(admin.ModelAdmin):
             'fields': ('cliente', 'tipo_servicio', 'tipo_evento', 'nombre_evento', 'notas_cliente', 'como_nos_encontro', 'fecha_evento', 'fecha_salida', 'hora_inicio', 'hora_fin', 'num_personas', 'estado', 'atendido_por'),
             'description': '"Fecha de salida" solo aplica a Hospedaje (checkout, varias noches); en el resto de los servicios déjala vacía.',
         }),
+        ('Evento durante la estancia', {
+            'fields': ('fecha_actividad', 'hora_actividad_inicio', 'hora_actividad_fin'),
+            'description': 'Solo Hospedaje: captúralo si la estancia incluye un evento (ej. recalentado).',
+        }),
         ('Configuración de Barra', {
             'fields': ('incluye_refrescos', 'incluye_cerveza', 'incluye_licor_nacional', 'incluye_licor_premium', 'incluye_cocteleria_basica', 'incluye_cocteleria_premium', 'clima', 'horas_servicio', 'factor_utilidad_barra', 'resumen_barra_html'),
             'description': 'Selecciona los componentes para armar el paquete.'
@@ -803,7 +807,7 @@ class CotizacionAdmin(admin.ModelAdmin):
         }),
         ('Cancelación', {'fields': ('motivo_cancelacion', 'cancelada_por', 'fecha_cancelacion'), 'classes': ('collapse',)}),
         ('Documentos', {
-            'fields': ('archivo_pdf', 'identificacion_oficial', 'identificacion_revisada',
+            'fields': ('archivo_pdf', 'documentos_no_requeridos', 'identificacion_oficial', 'identificacion_revisada',
                        'identificacion_revisada_por', 'identificacion_revisada_en', 'privacidad_cliente', 'enviar_email_btn'),
         }),
     )

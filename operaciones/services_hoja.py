@@ -5,9 +5,11 @@ se lleva en la Quinta. Es solo lectura sobre datos que ya existen; no persiste n
 Qué NO lleva, a propósito: precios, costos, proveedores, RFC, correo ni datos fiscales o de
 identificación del cliente (el PDF circula entre personal operativo).
 """
-from datetime import datetime
+from datetime import datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from types import SimpleNamespace
+
+from django.db.models import Q
 
 from comercial.models import Cotizacion, Producto
 from core_erp.documentos import render_pdf
@@ -18,6 +20,7 @@ from .constantes import (
     OFFSET_DESMONTAJE,
     OFFSET_LLEGADA_EQUIPO,
     OFFSET_LLEGADA_PROVEEDORES,
+    OFFSET_REVISION_ANTES_DE_EVENTO,
     TOLERANCIA_SALDO,
     WHATSAPP_ATENCION_QUINTA,
 )
@@ -52,7 +55,8 @@ def cotizaciones_operables(fechas=None):
     """Ventas confirmadas o ejecutadas de eventos, pasadías, arrendamientos y hospedajes, con todo precargado."""
     qs = Cotizacion.objects.filter(estado__in=ESTADOS_OPERABLES, tipo_servicio__in=SERVICIOS_OPERABLES)
     if fechas is not None:
-        qs = qs.filter(fecha_evento__in=list(fechas))
+        fechas = list(fechas)
+        qs = qs.filter(Q(fecha_evento__in=fechas) | Q(fecha_actividad__in=fechas))
     return (
         qs.select_related('cliente', 'tipo_evento', 'insumo_barman', 'insumo_auxiliar', 'deposito_garantia')
         .prefetch_related('items__producto', 'items__insumo', 'pagos', 'contratos__firma', 'tareas_operativas')
@@ -205,14 +209,62 @@ def _horario(cotizacion) -> str:
     return f"{_hora(cotizacion.hora_inicio)} a {_hora(cotizacion.hora_fin)}"
 
 
+def _actividad(cotizacion):
+    """(inicio, fin) del evento dentro de una estancia, o None. Un fin menor al inicio cruza la medianoche."""
+    datos = (cotizacion.fecha_actividad, cotizacion.hora_actividad_inicio, cotizacion.hora_actividad_fin)
+    if not _es_estancia(cotizacion) or any(d is None for d in datos):
+        return None
+    fecha, hora_inicio, hora_fin = datos
+    inicio = datetime.combine(fecha, hora_inicio)
+    fin = datetime.combine(fecha, hora_fin)
+    return inicio, fin if fin > inicio else fin + timedelta(days=1)
+
+
+def _horario_actividad(actividad) -> str:
+    if not actividad:
+        return ''
+    inicio, fin = actividad
+    return f"{_fecha_larga(inicio.date())}, {_hora(inicio.time())} a {_hora(fin.time())}"
+
+
+def _cronograma_estancia(cotizacion) -> list:
+    """Momentos de la estancia y, si lo hay, de su evento, en orden cronológico."""
+    def momento(etiqueta, fecha, hora, offset=timedelta()):
+        cuando = datetime.combine(fecha, hora or time.min) + offset
+        return cuando, etiqueta, _hora(cuando.time()) if hora else HORA_EN_BLANCO
+
+    entrada, salida = cotizacion.fecha_evento, cotizacion.fecha_salida
+    actividad = _actividad(cotizacion)
+    revision = OFFSET_DESMONTAJE
+    if actividad and cotizacion.hora_fin:
+        checkout = datetime.combine(salida, cotizacion.hora_fin)
+        # Si el evento empieza antes de la revisión habitual, las habitaciones se revisan antes.
+        if checkout <= actividad[0] <= checkout + OFFSET_DESMONTAJE:
+            revision = min(OFFSET_REVISION_ANTES_DE_EVENTO, actividad[0] - checkout)
+    momentos = [
+        momento('Habitaciones listas', entrada, cotizacion.hora_inicio, OFFSET_LLEGADA_PROVEEDORES),
+        momento(f"Entrada ({entrada:%d/%m})", entrada, cotizacion.hora_inicio),
+        momento(f"Salida ({salida:%d/%m})", salida, cotizacion.hora_fin),
+        momento('Revisión de habitaciones', salida, cotizacion.hora_fin, revision),
+    ]
+    if actividad:
+        inicio, fin = actividad
+        for etiqueta, base, offset in (
+            ('Llegada del equipo', inicio, OFFSET_LLEGADA_EQUIPO),
+            ('Llegada de proveedores', inicio, OFFSET_LLEGADA_PROVEEDORES),
+            ('Inicio del evento', inicio, timedelta()),
+            ('Cierre del evento', fin, timedelta()),
+            ('Desmontaje', fin, OFFSET_DESMONTAJE),
+        ):
+            cuando = base + offset
+            momentos.append(momento(f"{etiqueta} ({cuando:%d/%m})", cuando.date(), cuando.time()))
+    # `sorted` es estable: los empates conservan el orden de captura.
+    return [(etiqueta, hora) for _, etiqueta, hora in sorted(momentos, key=lambda m: m[0])]
+
+
 def _cronograma(cotizacion) -> list:
     if _es_estancia(cotizacion):
-        return [
-            ('Habitaciones listas', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_PROVEEDORES)),
-            (f"Entrada ({cotizacion.fecha_evento:%d/%m})", _hora(cotizacion.hora_inicio)),
-            (f"Salida ({cotizacion.fecha_salida:%d/%m})", _hora(cotizacion.hora_fin)),
-            ('Revisión de habitaciones', _con_offset(cotizacion.hora_fin, OFFSET_DESMONTAJE)),
-        ]
+        return _cronograma_estancia(cotizacion)
     return [
         ('Llegada del equipo', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_EQUIPO)),
         ('Llegada de proveedores', _con_offset(cotizacion.hora_inicio, OFFSET_LLEGADA_PROVEEDORES)),
@@ -230,7 +282,8 @@ def armar_contexto_hoja(cotizacion, plantillas=None, a_cargo=None) -> dict:
     if cotizacion.fecha_evento not in a_cargo:
         a_cargo[cotizacion.fecha_evento] = _a_cargo(cotizacion.fecha_evento)
     saldo = _saldo(cotizacion)
-    aforo = AFORO_MAXIMO.get(cotizacion.tipo_servicio)
+    actividad = _actividad(cotizacion)
+    aforo = AFORO_MAXIMO.get('EVENTO' if actividad else cotizacion.tipo_servicio)
     return {
         'folio': f"COT-{cotizacion.pk:03d}",
         'nombre_evento': cotizacion.nombre_evento,
@@ -241,6 +294,9 @@ def armar_contexto_hoja(cotizacion, plantillas=None, a_cargo=None) -> dict:
         'hora_inicio': _hora(cotizacion.hora_inicio),
         'horario': _horario(cotizacion),
         'num_personas': cotizacion.num_personas,
+        'horario_actividad': _horario_actividad(actividad),
+        'actividad': ({'fecha': actividad[0].date(), 'hora': actividad[0].time()} if actividad else None),
+        'hora_orden': cotizacion.hora_inicio or time.min,
         'cliente_nombre': cotizacion.cliente.nombre,
         'cliente_telefono': cotizacion.cliente.telefono,
         'servicios': _servicios(cotizacion),
@@ -251,6 +307,7 @@ def armar_contexto_hoja(cotizacion, plantillas=None, a_cargo=None) -> dict:
         'deposito': _deposito(cotizacion),
         'contrato_firmado': _contrato_firmado(cotizacion),
         'identificacion_revisada': cotizacion.identificacion_revisada,
+        'documentos_no_requeridos': cotizacion.documentos_no_requeridos,
         'checklist': _checklist(cotizacion, plantillas),
         'cronograma': _cronograma(cotizacion),
         'aforo_maximo': aforo,
@@ -264,12 +321,23 @@ def armar_contexto_hoja(cotizacion, plantillas=None, a_cargo=None) -> dict:
 
 
 def _indice(hojas):
-    """Portada de varias hojas: agrupadas por día (fecha · evento · hora)."""
-    dias = []
+    """Portada de varias hojas: agrupadas por día (fecha · evento · hora). El evento dentro de una
+    estancia lleva su propio renglón en su día."""
+    renglones = []
     for hoja in hojas:
-        if not dias or dias[-1]['fecha'] != hoja['fecha']:
-            dias.append({'fecha': hoja['fecha'], 'fecha_larga': hoja['fecha_larga'], 'hojas': []})
-        dias[-1]['hojas'].append(hoja)
+        renglones.append(hoja)
+        actividad = hoja['actividad']
+        if actividad:
+            renglones.append({
+                **hoja, 'fecha': actividad['fecha'], 'hora_orden': actividad['hora'],
+                'fecha_larga': _fecha_larga(actividad['fecha'], con_anio=True),
+                'hora_inicio': _hora(actividad['hora']), 'tipo_servicio': 'Evento (en hospedaje)',
+            })
+    dias = []
+    for renglon in sorted(renglones, key=lambda r: (r['fecha'], r['hora_orden'])):
+        if not dias or dias[-1]['fecha'] != renglon['fecha']:
+            dias.append({'fecha': renglon['fecha'], 'fecha_larga': renglon['fecha_larga'], 'hojas': []})
+        dias[-1]['hojas'].append(renglon)
     return dias
 
 
