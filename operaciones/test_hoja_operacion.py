@@ -411,6 +411,13 @@ class AccionHojaTest(TestCase):
         self.assertNotEqual(respuesta['Content-Type'], 'application/pdf')
         self.assertTrue(any('máximo 15' in m for m in self._mensajes(respuesta)))
 
+    def test_accion_redirige_a_un_get_que_el_celular_puede_abrir(self):
+        cots = [crear_cotizacion(nombre='A'), crear_cotizacion(nombre='B')]
+        respuesta = self.client.post(self.URL, {
+            'action': 'hoja_operacion_pdf', '_selected_action': [c.pk for c in cots]})
+        self.assertEqual(respuesta.status_code, 302)
+        self.assertIn('hoja-operacion/?ids=', respuesta['Location'])
+
     def test_ninguna_operable_da_error(self):
         cot = crear_cotizacion(estado='BORRADOR')
         respuesta = self._accion([cot])
