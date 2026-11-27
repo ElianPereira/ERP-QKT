@@ -22,9 +22,10 @@ from django.db.models import Q
 def cotizaciones_apartadas(fecha_inicio: date, fecha_fin: date):
     """Cotizaciones CONFIRMADA cuyo rango ocupado traslapa [fecha_inicio, fecha_fin).
 
-    c.rango_ocupado() = [fecha_evento, fecha_salida o fecha_evento+1día); traslapa
-    si fecha_evento < fecha_fin y (fecha_salida > fecha_inicio, o sin
-    fecha_salida y fecha_evento >= fecha_inicio). Una BORRADOR/COTIZADA nunca
+    c.rango_ocupado() = [fecha_evento, fecha_salida o fecha_evento+1día), extendido
+    al día de `fecha_actividad`; traslapa si fecha_evento < fecha_fin y
+    (fecha_salida > fecha_inicio, o sin fecha_salida y fecha_evento >=
+    fecha_inicio, o fecha_actividad >= fecha_inicio). Una BORRADOR/COTIZADA nunca
     bloquea: solo apartar la fecha (CONFIRMADA) lo hace."""
     from .models import Cotizacion
 
@@ -36,6 +37,7 @@ def rango_traslapa(qs, fecha_inicio: date, fecha_fin: date):
     return qs.filter(fecha_evento__lt=fecha_fin).filter(
         Q(fecha_salida__gt=fecha_inicio)
         | Q(fecha_salida__isnull=True, fecha_evento__gte=fecha_inicio)
+        | Q(fecha_actividad__gte=fecha_inicio)
     )
 
 

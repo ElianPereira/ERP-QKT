@@ -8,6 +8,7 @@ from pathlib import Path
 
 from django.contrib.auth.models import Group, Permission, User
 from django.contrib.messages import get_messages
+from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import connection
@@ -16,6 +17,7 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
+from comercial.disponibilidad import verificar_disponibilidad_fecha
 from comercial.models import (
     Cliente,
     ContratoServicio,
@@ -280,6 +282,62 @@ class HojaHospedajeTest(TestCase):
         self.assertIn('al domingo 29 de noviembre de 2026', html)
         self.assertIn('Revisión de habitaciones', html)
         self.assertNotIn('Llegada de proveedores', html)
+
+
+class HojaHospedajeConEventoTest(TestCase):
+    def _estancia(self, **extra):
+        datos = {
+            'fecha_salida': FECHA + timedelta(days=2), 'fecha_actividad': FECHA + timedelta(days=2),
+            'hora_actividad_inicio': time(14, 0), 'hora_actividad_fin': time(20, 0), **extra,
+        }
+        return crear_cotizacion(nombre='Recalentado', tipo='HOSPEDAJE', hora_inicio=time(10, 0),
+                                hora_fin=time(13, 0), **datos)
+
+    def test_cronograma_combinado_y_aforo(self):
+        hoja = armar_contexto_hoja(recargar(self._estancia()))
+        self.assertEqual(hoja['cronograma'], [
+            ('Habitaciones listas', '8:00 a.m.'),
+            ('Entrada (27/11)', '10:00 a.m.'),
+            ('Llegada del equipo (29/11)', '11:00 a.m.'),
+            ('Llegada de proveedores (29/11)', '12:00 p.m.'),
+            ('Salida (29/11)', '1:00 p.m.'),
+            ('Revisión de habitaciones', '1:15 p.m.'),
+            ('Inicio del evento (29/11)', '2:00 p.m.'),
+            ('Cierre del evento (29/11)', '8:00 p.m.'),
+            ('Desmontaje (29/11)', '9:00 p.m.'),
+        ])
+        self.assertEqual(hoja['aforo_maximo'], 150)
+
+    def test_agenda_lleva_renglon_del_evento(self):
+        self._estancia()
+        crear_cotizacion(nombre='Otro', fecha=FECHA + timedelta(days=7))
+        html = html_de(cotizaciones_operables())
+        self.assertIn('Evento (en hospedaje)', html)
+
+    def test_se_encuentra_por_la_fecha_del_evento(self):
+        cot = self._estancia()
+        self.assertEqual([c.pk for c in cotizaciones_operables([FECHA + timedelta(days=2)])], [cot.pk])
+
+    def test_ocupa_el_dia_de_salida(self):
+        cot = self._estancia()
+        domingo = FECHA + timedelta(days=2)
+        self.assertEqual(cot.rango_ocupado(), (FECHA, domingo + timedelta(days=1)))
+        self.assertFalse(verificar_disponibilidad_fecha(domingo)[0])
+        self.assertTrue(verificar_disponibilidad_fecha(domingo + timedelta(days=1))[0])
+
+    def test_validacion(self):
+        for extra in ({'hora_actividad_fin': None}, {'fecha_actividad': FECHA + timedelta(days=3)}):
+            with self.subTest(extra=extra), self.assertRaises(ValidationError):
+                self._estancia(**extra).clean()
+        evento = crear_cotizacion(fecha=FECHA + timedelta(days=20), fecha_actividad=FECHA + timedelta(days=20))
+        with self.assertRaises(ValidationError):
+            evento.clean()
+
+    def test_documentos_no_requeridos(self):
+        cot = self._estancia(documentos_no_requeridos=True)
+        html = html_de(cotizaciones_operables().filter(pk=cot.pk))
+        self.assertIn('<dt>Contrato firmado</dt><dd>No aplica</dd>', html)
+        self.assertIn('<dt>Identificación revisada</dt><dd>No aplica</dd>', html)
 
 
 class PdfHojaTest(TestCase):

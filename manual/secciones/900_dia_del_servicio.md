@@ -35,14 +35,14 @@ Si llega alguien **sin cita ni reservación**, el aviso lo dice («Sin cita ni r
 ### Hoja de operación
 
 :::rol ENCARGADO, DIRECCION
-La **hoja de operación** es un PDF para imprimir y llevar el día del servicio. Se puede sacar de eventos, pasadías, arrendamientos y hospedajes **confirmados o ejecutados**; de una cotización en borrador o una cancelada no. En un hospedaje la hoja trae las fechas y horas de entrada y salida.
+La **hoja de operación** es un PDF para imprimir y llevar el día del servicio. Se puede sacar de eventos, pasadías, arrendamientos y hospedajes **confirmados o ejecutados**; de una cotización en borrador o una cancelada no. En un hospedaje la hoja trae las fechas y horas de entrada y salida. Si la estancia incluye un evento (por ejemplo, un recalentado), captura su fecha, inicio y fin en **Evento durante la estancia** de la cotización: la hoja suma su cronograma y aforo, la agenda le da un renglón propio y ese día queda ocupado, aunque sea el de salida.
 
 - **Una sola cotización:** abre la cotización (**Eventos → Cotizaciones**) y toca **Hoja de operación** arriba, junto a los demás botones.
 - **Desde el calendario:** cada evento operable trae un ícono de PDF al inicio; tócalo para abrir su hoja. Un clic en el resto del evento abre la cotización como siempre.
 - **Varias a la vez:** en la lista de Cotizaciones marca las que quieras, elige la acción **Hoja de operación (PDF)** y toca **Ir**. Sale un solo PDF con una portada que ordena los eventos por día. El máximo es de **15 cotizaciones** por PDF; las que no se puedan imprimir se omiten y el sistema avisa cuáles.
 
 Cada evento trae tres hojas:
-1. **Antes:** datos del evento y del cliente, servicios contratados (sin precios), barra con sus insumos, notas del cliente, si hay saldo por cobrar en el sitio, el depósito en garantía, si el contrato está firmado, si la identificación está revisada y el checklist de preparación con su hora de entrada.
+1. **Antes:** datos del evento y del cliente, servicios contratados (sin precios), barra con sus insumos, notas del cliente, si hay saldo por cobrar en el sitio, el depósito en garantía, si el contrato está firmado, si la identificación está revisada (o «No aplica» cuando la cotización marca **Contrato e identificación no requeridos**) y el checklist de preparación con su hora de entrada.
 2. **Durante:** cronograma, reglas del servicio, conteo de aforo, control de barra y renglones para incidentes, con el WhatsApp de atención de la Quinta, el encargado de ese día (o su suplente) y el equipo de apoyo vigente con sus teléfonos.
 3. **Después:** checklist de cierre, cobro final, depósito, daños y faltantes, y firmas.
 
